@@ -1,0 +1,19 @@
+*
+!/.gitignore
+
+!*.go
+!go.sum
+!go.mod
+!.env.dev
+!.env.example
+!Dockerfile
+!docker-compose.yml
+!Makefile
+
+!README.md
+!LICENSE
+
+# !Makefile
+
+# ...even if they are in subdirectories
+!*/
