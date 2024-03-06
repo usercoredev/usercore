@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"io"
 	"os"
+	"path/filepath"
 )
 
 type Client struct {
@@ -11,18 +12,23 @@ type Client struct {
 	Name string `json:"name"`
 }
 
-func GetClients() ([]Client, error) {
+func GetClients(clientsFilePath string) ([]Client, error) {
 	var list []Client
-	jsonFile, err := os.Open("/run/secrets/clients")
+	filePath, err := filepath.Abs(clientsFilePath)
 	if err != nil {
 		return nil, err
 	}
+	jsonFile, err := os.Open(filePath)
+	if err != nil {
+		return nil, err
+	}
+	defer jsonFile.Close()
+
 	byteValue, _ := io.ReadAll(jsonFile)
 	err = json.Unmarshal(byteValue, &list)
 	if err != nil {
 		return nil, err
 	}
-
 	return list, err
 }
 

@@ -8,6 +8,7 @@
 !Dockerfile
 !docker-compose.yml
 !Makefile
+!/.dockerignore
 
 !README.md
 !LICENSE

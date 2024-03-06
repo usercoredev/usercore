@@ -1,0 +1,5 @@
+# Ignore everything
+**
+!go.mod
+!go.sum
+!**/*.go

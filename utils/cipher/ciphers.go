@@ -21,21 +21,22 @@ func readFile(fileName string) ([]byte, error) {
 	return bin, nil
 }
 
-func ApplePrivateKey() any {
-	privateKey, err := readFile(os.Getenv("APPLE_PRIVATE_KEY"))
-	if err != nil {
-		panic(err)
+/*
+	func ApplePrivateKey() any {
+		privateKey, err := readFile(os.Getenv("APPLE_PRIVATE_KEY"))
+		if err != nil {
+			panic(err)
+		}
+		block, _ := pem.Decode(privateKey)
+		parseResult, err := x509.ParsePKCS8PrivateKey(block.Bytes)
+		if err != nil {
+			panic(err)
+		}
+		return parseResult
 	}
-	block, _ := pem.Decode(privateKey)
-	parseResult, err := x509.ParsePKCS8PrivateKey(block.Bytes)
-	if err != nil {
-		panic(err)
-	}
-	return parseResult
-}
-
-func PrivateKey() *rsa.PrivateKey {
-	privateKey, err := readFile("/run/secrets/jwt_private_key")
+*/
+func PrivateKey(privateKeyPath string) *rsa.PrivateKey {
+	privateKey, err := readFile(privateKeyPath)
 	if err != nil {
 		panic(err)
 	}
@@ -47,8 +48,8 @@ func PrivateKey() *rsa.PrivateKey {
 	return parseResult
 }
 
-func PublicKey() *rsa.PublicKey {
-	publicKey, err := os.ReadFile("/run/secrets/jwt_public_key")
+func PublicKey(publicKeyPath string) *rsa.PublicKey {
+	publicKey, err := os.ReadFile(publicKeyPath)
 	if err != nil {
 		panic(err)
 	}
