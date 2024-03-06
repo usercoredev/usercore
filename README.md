@@ -33,6 +33,16 @@ user management features. It uses GRPC and HTTP for communication. It is designe
 - [ ] Role & permission management
 - [ ] Social login (Google, Facebook, Twitter, etc)
 
+## How to run
+
+```sh
+cp .env.example .env.dev
+```
+
+```sh
+ docker run --env-file=.env.dev -p 8001:8001 -p 9001:9001 -v $(pwd)/vault:/app/vault usercore/usercore:0.0.1-dev
+```
+
 ### DB Configuration
 
 > You can use DB_PASSWORD_FILE to load the password from a file instead of setting it in this file directly.
