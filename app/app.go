@@ -42,7 +42,6 @@ type Server struct {
 type App struct {
 	DefaultServer
 	Clients    []client.Client
-	Debug      bool
 	GRPCServer Server
 	HTTPServer Server
 }
