@@ -29,6 +29,7 @@ type DefaultToken struct {
 }
 
 type tokenOptions struct {
+	Scheme               string
 	AccessTokenExpire    time.Time
 	AccessTokenExpireIn  int
 	RefreshTokenExpire   time.Time
@@ -42,9 +43,9 @@ type PublicPrivateKey struct {
 
 var publicPrivateKey PublicPrivateKey
 
-func SetPublicPrivateKey() {
-	publicKey := cipher.PublicKey()
-	privateKey := cipher.PrivateKey()
+func SetPublicPrivateKey(publicKeyPath, privateKeyPath string) {
+	publicKey := cipher.PublicKey(publicKeyPath)
+	privateKey := cipher.PrivateKey(privateKeyPath)
 	publicPrivateKey = PublicPrivateKey{
 		PublicKey:  publicKey,
 		PrivateKey: privateKey,
@@ -53,18 +54,19 @@ func SetPublicPrivateKey() {
 
 var options tokenOptions
 
-func SetOptions() {
-	accessTokenExpireInMinute, err := strconv.Atoi(os.Getenv("ACCESS_TOKEN_EXPIRE"))
+func SetOptions(accessTokenExpire, refreshTokenExpire, scheme string) {
+	accessTokenExpireInMinute, err := strconv.Atoi(accessTokenExpire)
 	if err != nil {
 		panic(err)
 	}
 
-	refreshTokenExpireInMinute, err := strconv.Atoi(os.Getenv("REFRESH_TOKEN_EXPIRE"))
+	refreshTokenExpireInMinute, err := strconv.Atoi(refreshTokenExpire)
 	if err != nil {
 		panic(err)
 	}
 
 	options = tokenOptions{
+		Scheme:               scheme,
 		AccessTokenExpire:    time.Now().Add(time.Duration(accessTokenExpireInMinute) * time.Second),
 		AccessTokenExpireIn:  accessTokenExpireInMinute,
 		RefreshTokenExpire:   time.Now().Add(time.Duration(refreshTokenExpireInMinute) * time.Second),

@@ -32,43 +32,96 @@ type DefaultServer interface {
 	LoadClients()
 	ConnectToDatabase()
 	ConnectToCache()
-	SetTokenOptions()
+	ConfigureToken()
 }
 type Server struct {
 	Host string
 	Port string
 }
 
+type TokenOptions struct {
+	Scheme             string
+	PrivateKeyPath     string
+	PublicKeyPath      string
+	AccessTokenExpire  string
+	RefreshTokenExpire string
+}
+
+type DatabaseOptions struct {
+	Engine       string
+	DatabaseFile string
+	Host         string
+	Port         string
+	User         string
+	Password     string
+	PasswordFile string
+	Database     string
+	Charset      string
+}
+
+type Client struct {
+	Clients    []client.Client
+	ClientFile string
+}
+
+type CacheOptions struct {
+	Enabled string
+	Host    string
+	Port    string
+}
+
 type App struct {
 	DefaultServer
-	Clients    []client.Client
-	GRPCServer Server
-	HTTPServer Server
+	Client          Client
+	GRPCServer      Server
+	HTTPServer      Server
+	TokenOptions    TokenOptions
+	DatabaseOptions DatabaseOptions
+	CacheOptions    CacheOptions
 }
 
 func (app *App) LoadClients() {
-	clientList, err := client.GetClients()
+	clientList, err := client.GetClients(app.Client.ClientFile)
 	if err != nil {
 		panic(err)
 	}
-	clients = append(app.Clients, clientList...)
-	app.Clients = clients
+	clients = append(app.Client.Clients, clientList...)
+	app.Client.Clients = clients
 }
 
 func (app *App) ConnectToDatabase() {
-	if err := database.Connect(); err != nil {
+	options := database.Database{
+		Engine:       app.DatabaseOptions.Engine,
+		DatabaseFile: app.DatabaseOptions.DatabaseFile,
+		Host:         app.DatabaseOptions.Host,
+		Port:         app.DatabaseOptions.Port,
+		User:         app.DatabaseOptions.User,
+		Password:     app.DatabaseOptions.Password,
+		PasswordFile: app.DatabaseOptions.PasswordFile,
+		Database:     app.DatabaseOptions.Database,
+		Charset:      app.DatabaseOptions.Charset,
+	}
+	if err := options.Connect(); err != nil {
 		panic(err)
 	}
-	//database.DropTables()
-	database.Migration()
 }
 
-func (app *App) SetTokenOptions() {
-	token.SetPublicPrivateKey()
-	token.SetOptions()
+func (app *App) ConfigureToken() {
+	token.SetPublicPrivateKey(app.TokenOptions.PublicKeyPath, app.TokenOptions.PrivateKeyPath)
+	token.SetOptions(app.TokenOptions.AccessTokenExpire, app.TokenOptions.RefreshTokenExpire, app.TokenOptions.Scheme)
 }
 
-func (app *App) ConnectToCache() {
+func (app *App) Cache() {
+	if app.CacheOptions.Enabled != "true" {
+		return
+	}
+
+	defer func() {
+		if r := recover(); r != nil {
+			fmt.Println("Recovered from panic", r)
+		}
+	}()
+
 	if err := cache.Redis(); err != nil {
 		panic(err)
 	}
