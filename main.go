@@ -41,6 +41,7 @@ func main() {
 	}
 	mainApp.ConfigureToken()
 	//mainApp.ConnectToDatabase()
+
 	mainApp.Cache()
 	mainApp.LoadClients()
 	mainApp.StartServer()

@@ -12,7 +12,7 @@
 
 !README.md
 !LICENSE
-
+!vault/
 # !Makefile
 
 # ...even if they are in subdirectories
