@@ -4,7 +4,6 @@
 !*.go
 !go.sum
 !go.mod
-!.env.dev
 !.env.example
 !Dockerfile
 !docker-compose.yml

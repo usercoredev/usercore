@@ -18,31 +18,15 @@ var (
 	UserProfileCachePrefix     = "user:profile:"
 	UserCacheKey               = UserCachePrefix + "%s"
 	UserProfileCacheKey        = UserProfileCachePrefix + "%s"
-
-	CollectionCacheExpiration = time.Hour * 48
-	CollectionCachePrefix     = "collection:"
-	CollectionCacheKey        = CollectionCachePrefix + "%d"
-
-	WordCacheExpiration = time.Hour * 48
-	WordCachePrefix     = "word:"
-	WordCacheKey        = WordCachePrefix + "%d"
-
-	WordListCacheExpiration = time.Hour * 48
-	WordListCachePrefix     = "collection:"
-	WordListCacheKey        = WordListCachePrefix + "%d" + ":words"
-
-	BlogCacheExpiration = time.Hour * 48
-	BlogCachePrefix     = "blog:"
-	BlogCacheKey        = BlogCachePrefix + "%s"
 )
 
-type CacheNotEnabled string
+type NotEnabled string
 
-func (e CacheNotEnabled) Error() string { return string(e) }
+func (e NotEnabled) Error() string { return string(e) }
 
-func (CacheNotEnabled) CacheNotEnabledError() {}
+func (NotEnabled) CacheNotEnabledError() {}
 
-const CacheNotEnabledErr = CacheNotEnabled("cache not enabled")
+const NotEnabledErr = NotEnabled("cache not enabled")
 
 func Redis() error {
 	if os.Getenv("CACHE_ENABLED") != "true" {
@@ -97,7 +81,7 @@ func Set(key string, value interface{}, expire time.Duration) error {
 
 func SetList(key string, value interface{}, expire time.Duration) error {
 	if os.Getenv("CACHE_ENABLED") != "true" {
-		return CacheNotEnabledErr
+		return NotEnabledErr
 	}
 	encryptionKey := os.Getenv("REDIS_ENCRYPTION_KEY")
 	jsonVal, err := json.Marshal(value)
@@ -115,7 +99,7 @@ func SetList(key string, value interface{}, expire time.Duration) error {
 
 func Get(key string, value interface{}) error {
 	if os.Getenv("CACHE_ENABLED") != "true" {
-		return CacheNotEnabledErr
+		return NotEnabledErr
 	}
 
 	encryptionKey := os.Getenv("REDIS_ENCRYPTION_KEY")

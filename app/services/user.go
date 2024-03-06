@@ -74,7 +74,7 @@ func (s *UserServer) GetUser(ctx context.Context, _ *v1.GetUserRequest) (*v1.Get
 	var cachedUser database.User
 	cacheErr := cache.Get(userCacheKey, &cachedUser)
 	if cacheErr != nil {
-		if !errors.Is(cacheErr, redis.Nil) && !errors.Is(cacheErr, cache.CacheNotEnabledErr) {
+		if !errors.Is(cacheErr, redis.Nil) && !errors.Is(cacheErr, cache.NotEnabledErr) {
 			return nil, status.Errorf(codes.NotFound, responses.NotFound)
 		}
 	}
