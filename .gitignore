@@ -12,7 +12,9 @@
 
 !README.md
 !LICENSE
-!vault/
+!vault/example/clients.json
+!vault/example/jwt.private
+!vault/example/jwt.public
 # !Makefile
 
 # ...even if they are in subdirectories
