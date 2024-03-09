@@ -19,6 +19,7 @@
 !vault/example/db-pass.txt
 !vault/example/certs/server-cert.pem
 !vault/example/certs/server-key.pem
+!build.sh
 # !Makefile
 
 # ...even if they are in subdirectories

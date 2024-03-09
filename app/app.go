@@ -5,18 +5,16 @@ import (
 	"fmt"
 	"github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
 	v1 "github.com/usercoredev/proto/api/v1"
-	"github.com/usercoredev/usercore/app/responses"
 	"github.com/usercoredev/usercore/app/services"
 	"github.com/usercoredev/usercore/cache"
 	"github.com/usercoredev/usercore/database"
 	"github.com/usercoredev/usercore/utils/client"
+	"github.com/usercoredev/usercore/utils/server"
 	"github.com/usercoredev/usercore/utils/token"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/reflection"
-	"google.golang.org/grpc/status"
 	"log"
 	"net"
 	"net/http"
@@ -60,16 +58,17 @@ type TokenOptions struct {
 }
 
 type databaseOptions struct {
-	Engine       string
-	DatabaseFile string
-	Host         string
-	Port         string
-	User         string
-	Password     string
-	PasswordFile string
-	Database     string
-	Certificate  string
-	Charset      string
+	Engine          string
+	DatabaseFile    string
+	Host            string
+	Port            string
+	User            string
+	Password        string
+	PasswordFile    string
+	Database        string
+	Certificate     string
+	Charset         string
+	EnableMigration string
 }
 
 type clientSettings struct {
@@ -99,16 +98,17 @@ func Create() {
 			Port: os.Getenv("HTTP_SERVER_PORT"),
 		},
 		databaseOptions: databaseOptions{
-			Host:         os.Getenv("DB_HOST"),
-			Port:         os.Getenv("DB_PORT"),
-			User:         os.Getenv("DB_USER"),
-			Password:     os.Getenv("DB_PASSWORD"),
-			PasswordFile: os.Getenv("DB_PASSWORD_FILE"),
-			Database:     os.Getenv("DB_NAME"),
-			DatabaseFile: os.Getenv("DB_FILE_PATH"),
-			Engine:       os.Getenv("DB_ENGINE"),
-			Charset:      os.Getenv("DB_CHARSET"),
-			Certificate:  os.Getenv("DB_CERTIFICATE_FILE"),
+			Host:            os.Getenv("DB_HOST"),
+			Port:            os.Getenv("DB_PORT"),
+			User:            os.Getenv("DB_USER"),
+			Password:        os.Getenv("DB_PASSWORD"),
+			PasswordFile:    os.Getenv("DB_PASSWORD_FILE"),
+			Database:        os.Getenv("DB_NAME"),
+			DatabaseFile:    os.Getenv("DB_FILE_PATH"),
+			Engine:          os.Getenv("DB_ENGINE"),
+			Charset:         os.Getenv("DB_CHARSET"),
+			Certificate:     os.Getenv("DB_CERTIFICATE_FILE"),
+			EnableMigration: os.Getenv("DB_MIGRATE"),
 		},
 		cacheOptions: cacheOptions{
 			Enabled: os.Getenv("CACHE_ENABLED"),
@@ -134,16 +134,17 @@ func (a *Application) LoadClients() {
 
 func (a *Application) ConnectToDatabase() {
 	options := database.Database{
-		Engine:       a.databaseOptions.Engine,
-		DatabaseFile: a.databaseOptions.DatabaseFile,
-		Host:         a.databaseOptions.Host,
-		Port:         a.databaseOptions.Port,
-		User:         a.databaseOptions.User,
-		Password:     a.databaseOptions.Password,
-		PasswordFile: a.databaseOptions.PasswordFile,
-		Database:     a.databaseOptions.Database,
-		Charset:      a.databaseOptions.Charset,
-		Certificate:  a.databaseOptions.Certificate,
+		Engine:          a.databaseOptions.Engine,
+		DatabaseFile:    a.databaseOptions.DatabaseFile,
+		Host:            a.databaseOptions.Host,
+		Port:            a.databaseOptions.Port,
+		User:            a.databaseOptions.User,
+		Password:        a.databaseOptions.Password,
+		PasswordFile:    a.databaseOptions.PasswordFile,
+		Database:        a.databaseOptions.Database,
+		Charset:         a.databaseOptions.Charset,
+		Certificate:     a.databaseOptions.Certificate,
+		EnableMigration: a.databaseOptions.EnableMigration,
 	}
 	if err := options.Connect(); err != nil {
 		panic(err)
@@ -178,7 +179,10 @@ func (a *Application) StartServer() {
 	}
 
 	s := grpc.NewServer(
-		grpc.ChainUnaryInterceptor(clientInterceptor, token.AuthInterceptor),
+		grpc.ChainUnaryInterceptor(
+			server.ClientInterceptor(a.clientSettings.clients),
+			server.AuthInterceptor,
+		),
 		grpc.ChainStreamInterceptor(),
 	)
 	a.RegisterGRPCServices(s)
@@ -249,25 +253,4 @@ func (a *Application) RegisterHTTPServices(ctx context.Context, mux *runtime.Ser
 	if err := v1.RegisterPermissionServiceHandler(ctx, mux, conn); err != nil {
 		log.Fatalln("Failed to register gateway:", err)
 	}
-}
-
-func clientInterceptor(ctx context.Context, req interface{}, _ *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
-	md, ok := metadata.FromIncomingContext(ctx)
-	if !ok {
-		return nil, status.Errorf(codes.Unauthenticated, "metadata not provided")
-	}
-
-	if len(md.Get("client_id")) == 0 {
-		return nil, status.Errorf(codes.Unauthenticated, responses.ClientRequired)
-	}
-	clientID := md.Get("client_id")[0]
-	if clientID == "" {
-		return nil, status.Errorf(codes.Unauthenticated, responses.ClientRequired)
-	}
-	mdClient := client.GetClient(clientID, App.clientSettings.clients)
-	if mdClient == nil {
-		return nil, status.Errorf(codes.Unauthenticated, responses.InvalidClient)
-	}
-	ctx = context.WithValue(ctx, "client", mdClient)
-	return handler(ctx, req)
 }

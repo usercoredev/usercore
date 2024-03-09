@@ -2,11 +2,11 @@ package services
 
 import (
 	v1 "github.com/usercoredev/proto/api/v1"
-	"github.com/usercoredev/usercore/utils/token"
+	"github.com/usercoredev/usercore/utils/server"
 )
 
 type RoleServer struct {
-	token.AuthorizationRequired
+	server.AuthorizationRequired
 	v1.UnimplementedRoleServiceServer
 }
 

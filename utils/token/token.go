@@ -1,7 +1,6 @@
 package token
 
 import (
-	"context"
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/sha256"
@@ -10,13 +9,8 @@ import (
 	"fmt"
 	"github.com/cristalhq/jwt/v4"
 	"github.com/google/uuid"
-	"github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/auth"
 	"github.com/usercoredev/usercore/app/responses"
 	"github.com/usercoredev/usercore/utils/cipher"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/metadata"
-	"google.golang.org/grpc/status"
 	"os"
 	"strconv"
 	"time"
@@ -74,35 +68,6 @@ func SetOptions(accessTokenExpire, refreshTokenExpire, scheme string) {
 	}
 }
 
-type AuthorizationRequired interface {
-	IsAuthorizationRequired() bool
-}
-
-func AuthInterceptor(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
-	if authConfigProvider, ok := info.Server.(AuthorizationRequired); ok {
-		if authConfigProvider.IsAuthorizationRequired() {
-			_, ok := metadata.FromIncomingContext(ctx)
-			if !ok {
-				return nil, status.Errorf(codes.Unauthenticated, "metadata not provided")
-			}
-
-			token, err := auth.AuthFromMD(ctx, "Bearer")
-			if err != nil {
-				return nil, err
-			}
-
-			claims, err := verifyJWT(token)
-			if err != nil {
-				return nil, status.Errorf(codes.Unauthenticated, err.Error())
-			}
-			ctx = context.WithValue(ctx, "claims", claims)
-		}
-	}
-
-	// Call the handler
-	return handler(ctx, req)
-}
-
 func CreateRefreshToken(uuid uuid.UUID) (string, *time.Time) {
 	buffer := make([]byte, 16)
 	_, err := rand.Read(buffer)
@@ -147,7 +112,7 @@ func CreateJWT(userId uuid.UUID) (string, int64, error) {
 	return token.String(), int64(options.AccessTokenExpireIn), nil
 }
 
-func verifyJWT(token string) (*Token, error) {
+func VerifyJWT(token string) (*Token, error) {
 	verifier, err := jwt.NewVerifierPS(jwt.PS512, publicPrivateKey.PublicKey)
 	if err != nil {
 		return nil, fmt.Errorf(responses.InvalidToken)
