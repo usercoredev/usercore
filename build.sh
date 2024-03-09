@@ -1,16 +1,10 @@
 #!/bin/bash
-
-# Initialize variables
 VERSION=""
 IMAGE_NAME="usercore"
-
-# Function to show usage
 usage() {
     echo "Usage: $0 -t <version>"
     exit 1
 }
-
-# Parse command line options
 while getopts ":t:" opt; do
   case ${opt} in
     t )
@@ -22,8 +16,6 @@ while getopts ":t:" opt; do
   esac
 done
 shift $((OPTIND -1))
-
-# Check if version was provided
 if [ -z "$VERSION" ]; then
     echo -e "\n\n"
     echo -e "\033[1;31mError: Version tag is required.\033[0m"

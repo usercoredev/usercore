@@ -137,10 +137,25 @@ func (d *Database) connectMySQL() (*gorm.DB, error) {
 	return db, nil
 }
 
-func (d *Database) connectPostgres() (db *gorm.DB, dbError error) {
-	dsn := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%s sslmode=disable TimeZone=Asia/Shanghai", d.Host, d.User, d.Password, d.Database, d.Port)
-	db, dbError = gorm.Open(postgres.Open(dsn), &gorm.Config{})
-	return
+func (d *Database) connectPostgres() (*gorm.DB, error) {
+	dbAccess := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=disable", d.Host, d.Port, d.User, d.Password, d.Database)
+	if d.Certificate != "" {
+		caCertPool := x509.NewCertPool()
+		caCert, err := os.ReadFile(d.Certificate)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read certificate file: %w", err)
+		}
+		if ok := caCertPool.AppendCertsFromPEM(caCert); !ok {
+			return nil, fmt.Errorf("failed to append CA certificate to pool")
+		}
+		dbAccess += fmt.Sprintf(" sslmode=require sslrootcert=%s", d.Certificate)
+	}
+	db, err := gorm.Open(postgres.Open(dbAccess), &gorm.Config{})
+	if err != nil {
+		return nil, fmt.Errorf("failed to connect to database: %v", err)
+	}
+
+	return db, nil
 }
 
 func Migrate() {

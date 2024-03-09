@@ -3,6 +3,7 @@ package database
 import (
 	"context"
 	"errors"
+	"fmt"
 	"github.com/google/uuid"
 	"github.com/usercoredev/usercore/utils"
 	"github.com/usercoredev/usercore/utils/client"
@@ -151,7 +152,7 @@ func userPreload() *gorm.DB {
 }
 
 func (user *User) CreateSession(ctx context.Context) (*token.DefaultToken, error) {
-	sClient := ctx.Value("client").(*client.Client)
+	sClient := ctx.Value(client.Key).(*client.Client)
 	jwt, expiresIn, err := token.CreateJWT(user.ID)
 	if err != nil {
 		return nil, err
@@ -184,23 +185,48 @@ func (user *User) CreateSession(ctx context.Context) (*token.DefaultToken, error
 func GetUsers(md utils.PageMetadata) ([]*User, int64, error) {
 	var count int64
 	var users []*User
-	if err := DB.Model(User{}).
-		Preload("Sessions").
-		Preload("Profile").
-		Joins("Profile").
-		Or("name LIKE ?", "%"+md.Search+"%").
-		Or("email LIKE ?", "%"+md.Search+"%").
-		Or("Profile.timezone LIKE ?", "%"+md.Search+"%").
-		Or("Profile.birthdate LIKE ?", "%"+md.Search+"%").
-		Or("Profile.gender LIKE ?", "%"+md.Search+"%").
-		Or("Profile.locale LIKE ?", "%"+md.Search+"%").
-		Or("Profile.education LIKE ?", "%"+md.Search+"%").
+	likeOperator := getLikeOperator(DB)
+
+	query := DB.Model(&User{}).
+		Joins("LEFT JOIN profiles ON profiles.user_id = users.id").
+		Where(fmt.Sprintf("users.name %s ?", likeOperator), "%"+md.Search+"%").
+		Or(fmt.Sprintf("users.email %s ?", likeOperator), "%"+md.Search+"%").
+		Or(fmt.Sprintf("profiles.timezone %s ?", likeOperator), "%"+md.Search+"%")
+
+	query = addDatabaseSpecificConditions(query, likeOperator, md.Search)
+
+	query = query.
+		Or(fmt.Sprintf("profiles.gender %s ?", likeOperator), "%"+md.Search+"%").
+		Or(fmt.Sprintf("profiles.locale %s ?", likeOperator), "%"+md.Search+"%").
+		Or(fmt.Sprintf("profiles.education %s ?", likeOperator), "%"+md.Search+"%").
 		Count(&count).
 		Order(md.ConvertToOrder()).
 		Offset(int(md.Offset())).
 		Limit(int(md.PageSize)).
-		Find(&users).Error; err != nil {
+		Find(&users)
+
+	if err := query.Error; err != nil {
 		return nil, 0, err
 	}
+
 	return users, count, nil
+}
+
+// getLikeOperator determines the appropriate LIKE operator based on the database dialect.
+func getLikeOperator(db *gorm.DB) string {
+	if db.Dialector.Name() == "postgres" {
+		return "ILIKE"
+	}
+	return "LIKE"
+}
+
+// addDatabaseSpecificConditions adds conditions to the query that are specific to the database dialect.
+func addDatabaseSpecificConditions(query *gorm.DB, likeOperator, search string) *gorm.DB {
+	if DB.Dialector.Name() == "postgres" {
+		query = query.Or(fmt.Sprintf("profiles.birthdate::text %s ?", likeOperator), "%"+search+"%")
+	} else {
+		// Adjust for MySQL or other databases as necessary.
+		query = query.Or(fmt.Sprintf("profiles.birthdate %s ?", likeOperator), "%"+search+"%")
+	}
+	return query
 }
