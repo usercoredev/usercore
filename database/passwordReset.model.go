@@ -11,6 +11,6 @@ type PasswordReset struct {
 }
 
 // CheckResetToken checks if the password reset token is valid
-func (passwordReset *PasswordReset) CheckResetToken(token string) bool {
-	return passwordReset.ResetToken == token
+func (pReset *PasswordReset) CheckResetToken(token string) bool {
+	return pReset.ResetToken == token
 }

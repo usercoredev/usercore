@@ -57,12 +57,21 @@ cp .env.example .env.dev
 
 ### Example docker-compose.yaml
 
+Note: If you want to build the image locally, you can use the `build.sh` script.
+
+```sh
+./build.sh -t <version> # Example: ./build.sh -t 0.0.1-dev
+```
+
+After building the image, you can use the following `docker-compose.yaml` file to run the service.
+If you build the image locally, you should change the image name to docker image hash.
+
 ```yaml
 version: "3.8"
 
 services:
   usercore_app:
-    image: d053dbef893abebffa6eb0a17cb523ca63c8eab1d7c3c620fd701af98d0a977e
+    image: usercore/usercore:0.0.1-dev # Change this to the image hash if you build the image locally
     container_name: usercore_app
     depends_on:
       usercore_database:

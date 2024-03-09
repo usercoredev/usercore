@@ -18,16 +18,17 @@ import (
 var DB *gorm.DB
 
 type Database struct {
-	Engine       string
-	Database     string
-	DatabaseFile string // For SQLite
-	Charset      string
-	User         string
-	Password     string
-	PasswordFile string
-	Host         string
-	Port         string
-	Certificate  string
+	Engine          string
+	Database        string
+	DatabaseFile    string // For SQLite
+	Charset         string
+	User            string
+	Password        string
+	PasswordFile    string
+	Host            string
+	Port            string
+	Certificate     string
+	EnableMigration string
 }
 
 func (d *Database) Connect() (err error) {
@@ -36,7 +37,11 @@ func (d *Database) Connect() (err error) {
 		return
 	} else {
 		fmt.Println("Database connection successful")
-		Migrate()
+		if d.EnableMigration == "true" {
+			fmt.Println("Migrating database")
+			Migrate()
+			fmt.Println("Database migration successful")
+		}
 	}
 
 	return
@@ -125,7 +130,6 @@ func (d *Database) connectMySQL() (*gorm.DB, error) {
 	}
 
 	dbDSN := fmt.Sprintf("%s?parseTime=true&charset=%s&tls=%s", dbAccess, d.Charset, tlsEnabled)
-	fmt.Println("dbDSN", dbDSN)
 	db, dbError := gorm.Open(gMysql.Open(dbDSN), &gorm.Config{})
 	if dbError != nil {
 		return nil, fmt.Errorf("failed to connect to database: %v", dbError)

@@ -13,14 +13,6 @@ import (
 	"os"
 )
 
-func readFile(fileName string) ([]byte, error) {
-	bin, err := os.ReadFile(fileName)
-	if err != nil {
-		return nil, err
-	}
-	return bin, nil
-}
-
 /*
 	func ApplePrivateKey() any {
 		privateKey, err := readFile(os.Getenv("APPLE_PRIVATE_KEY"))
@@ -35,24 +27,21 @@ func readFile(fileName string) ([]byte, error) {
 		return parseResult
 	}
 */
-func PrivateKey(privateKeyPath string) *rsa.PrivateKey {
-	privateKey, err := readFile(privateKeyPath)
+func PrivateKey(privateKeyPath string) (key *rsa.PrivateKey) {
+	privateKey, err := os.ReadFile(privateKeyPath)
 	if err != nil {
 		panic(err)
 	}
 	block, _ := pem.Decode(privateKey)
-	parseResult, err := x509.ParsePKCS1PrivateKey(block.Bytes)
+	key, err = x509.ParsePKCS1PrivateKey(block.Bytes)
 	if err != nil {
 		panic(err)
 	}
-	return parseResult
+	return
 }
 
-func PublicKey(publicKeyPath string) *rsa.PublicKey {
+func PublicKey(publicKeyPath string) (key *rsa.PublicKey) {
 	publicKey, err := os.ReadFile(publicKeyPath)
-	if err != nil {
-		panic(err)
-	}
 	if err != nil {
 		panic(err)
 	}
@@ -61,24 +50,19 @@ func PublicKey(publicKeyPath string) *rsa.PublicKey {
 	if err != nil {
 		panic(err)
 	}
-	key := parseResult.(*rsa.PublicKey)
-	return key
+	key = parseResult.(*rsa.PublicKey)
+	return
 }
 
 func EncryptWithKey(value []byte, key string) (string, error) {
-	// Generate a new AES cipher using the key.
 	block, err := aes.NewCipher([]byte(key))
 	if err != nil {
 		return "", err
 	}
-
-	// AES-GCM
 	gcm, err := cipher.NewGCM(block)
 	if err != nil {
 		return "", err
 	}
-
-	// Nonce should be unique for each operation
 	nonce := make([]byte, gcm.NonceSize())
 	if _, err := io.ReadFull(rand.Reader, nonce); err != nil {
 		return "", err

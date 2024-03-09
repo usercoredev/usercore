@@ -79,24 +79,6 @@ func Set(key string, value interface{}, expire time.Duration) error {
 	return result.Err()
 }
 
-func SetList(key string, value interface{}, expire time.Duration) error {
-	if os.Getenv("CACHE_ENABLED") != "true" {
-		return NotEnabledErr
-	}
-	encryptionKey := os.Getenv("REDIS_ENCRYPTION_KEY")
-	jsonVal, err := json.Marshal(value)
-	if err != nil {
-		return err
-	}
-	encryptedValue, err := cipher.EncryptWithKey(jsonVal, encryptionKey)
-	if err != nil {
-		return err
-	}
-	ctx := context.Background()
-	result := RDB.LPush(ctx, key, encryptedValue)
-	return result.Err()
-}
-
 func Get(key string, value interface{}) error {
 	if os.Getenv("CACHE_ENABLED") != "true" {
 		return NotEnabledErr

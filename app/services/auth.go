@@ -11,7 +11,7 @@ import (
 	"github.com/usercoredev/usercore/database"
 	"github.com/usercoredev/usercore/utils"
 	"github.com/usercoredev/usercore/utils/client"
-	"github.com/usercoredev/usercore/utils/token"
+	"github.com/usercoredev/usercore/utils/server"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"gorm.io/gorm"
@@ -19,7 +19,7 @@ import (
 )
 
 type AuthenticationServer struct {
-	token.AuthorizationRequired
+	server.AuthorizationRequired
 	v1.UnimplementedAuthenticationServiceServer
 }
 
@@ -105,7 +105,7 @@ func (s *AuthenticationServer) SignIn(ctx context.Context, in *v1.SignInRequest)
 }
 
 func (s *AuthenticationServer) RefreshToken(ctx context.Context, in *v1.RefreshTokenRequest) (*v1.AuthenticationResponse, error) {
-	ctxClient := ctx.Value("client").(*client.Client)
+	ctxClient := ctx.Value(client.Key).(*client.Client)
 
 	refreshTokenRequest := validations.RefreshTokenRequest{
 		RefreshToken: in.RefreshToken,

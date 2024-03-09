@@ -13,6 +13,7 @@ import (
 	"github.com/usercoredev/usercore/cache"
 	"github.com/usercoredev/usercore/database"
 	"github.com/usercoredev/usercore/utils"
+	"github.com/usercoredev/usercore/utils/server"
 	"github.com/usercoredev/usercore/utils/token"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -23,7 +24,7 @@ import (
 )
 
 type UserServer struct {
-	token.AuthorizationRequired
+	server.AuthorizationRequired
 	v1.UnimplementedUserServiceServer
 }
 

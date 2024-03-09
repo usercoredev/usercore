@@ -8,6 +8,7 @@ import (
 	v1 "github.com/usercoredev/proto/api/v1"
 	"github.com/usercoredev/usercore/app/responses"
 	"github.com/usercoredev/usercore/database"
+	"github.com/usercoredev/usercore/utils/server"
 	"github.com/usercoredev/usercore/utils/token"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -16,7 +17,7 @@ import (
 )
 
 type SessionServer struct {
-	token.AuthorizationRequired
+	server.AuthorizationRequired
 	v1.UnimplementedSessionServiceServer
 }
 
