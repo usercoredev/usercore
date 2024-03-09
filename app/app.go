@@ -68,6 +68,7 @@ type databaseOptions struct {
 	Password     string
 	PasswordFile string
 	Database     string
+	Certificate  string
 	Charset      string
 }
 
@@ -106,6 +107,8 @@ func Create() {
 			Database:     os.Getenv("DB_NAME"),
 			DatabaseFile: os.Getenv("DB_FILE_PATH"),
 			Engine:       os.Getenv("DB_ENGINE"),
+			Charset:      os.Getenv("DB_CHARSET"),
+			Certificate:  os.Getenv("DB_CERTIFICATE_FILE"),
 		},
 		cacheOptions: cacheOptions{
 			Enabled: os.Getenv("CACHE_ENABLED"),
@@ -140,6 +143,7 @@ func (a *Application) ConnectToDatabase() {
 		PasswordFile: a.databaseOptions.PasswordFile,
 		Database:     a.databaseOptions.Database,
 		Charset:      a.databaseOptions.Charset,
+		Certificate:  a.databaseOptions.Certificate,
 	}
 	if err := options.Connect(); err != nil {
 		panic(err)
