@@ -20,6 +20,8 @@
 !vault/example/certs/server-cert.pem
 !vault/example/certs/server-key.pem
 !build.sh
+!examples/mysql-docker-compose.yaml
+!examples/postgres-docker-compose.yaml
 # !Makefile
 
 # ...even if they are in subdirectories
