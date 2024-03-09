@@ -98,17 +98,11 @@ func CreateJWT(userId uuid.UUID) (string, int64, error) {
 		NotBefore: jwt.NewNumericDate(time.Now()),
 		Audience:  []string{"admin"},
 	}
-
-	// create a Builder
 	builder := jwt.NewBuilder(signer)
-
-	// and build a Token
 	token, err := builder.Build(claims)
 	if err != nil {
 		return "", 0, err
 	}
-
-	// here is token as a string
 	return token.String(), int64(options.AccessTokenExpireIn), nil
 }
 
