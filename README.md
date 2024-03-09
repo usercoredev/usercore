@@ -7,6 +7,12 @@ user management features. It uses GRPC and HTTP for communication. It is designe
 
 ## Features
 
+- POSTGRES, MYSQL, SQLITE support
+- GRPC & HTTP support
+- JWT based authentication
+- Email & SMS verification
+
+## Endpoints
 - Sign in
 - Sign up
 - Sign out
@@ -36,11 +42,11 @@ user management features. It uses GRPC and HTTP for communication. It is designe
 ## How to run
 
 ```sh
-cp .env.example .env.dev
+cp .env.example .env
 ```
 
 ```sh
- docker run --env-file=.env.dev -p 8001:8001 -p 9001:9001 -v $(pwd)/vault:/app/vault usercore/usercore:0.0.1-dev
+ docker run --env-file=.env -p 8001:8001 -p 9001:9001 -v $(pwd)/vault:/app/vault usercore/usercore:0.0.1-dev
 ```
 
 ### DB Configuration
@@ -65,6 +71,8 @@ Note: If you want to build the image locally, you can use the `build.sh` script.
 
 After building the image, you can use the following one of the examples `<db_engine>-docker-compose.yaml` file to run the service.
 If you build the image locally, you should change the image name to docker image hash.
+
+NOTE: Don't forget to set the correct environment variables in the `.env` file.
 
 **[mysql-docker-compose.yaml](./examples/mysql-docker-compose.yaml)**
 
