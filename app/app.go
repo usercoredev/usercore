@@ -20,9 +20,20 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"os"
 )
 
-var clients []client.Client
+var App Application
+
+type Application struct {
+	DefaultServer
+	clientSettings  clientSettings
+	grpcServer      Server
+	httpServer      Server
+	tokenOptions    TokenOptions
+	databaseOptions databaseOptions
+	cacheOptions    cacheOptions
+}
 
 type DefaultServer interface {
 	StartServer()
@@ -34,6 +45,7 @@ type DefaultServer interface {
 	ConnectToCache()
 	ConfigureToken()
 }
+
 type Server struct {
 	Host string
 	Port string
@@ -47,7 +59,7 @@ type TokenOptions struct {
 	RefreshTokenExpire string
 }
 
-type DatabaseOptions struct {
+type databaseOptions struct {
 	Engine       string
 	DatabaseFile string
 	Host         string
@@ -59,81 +71,103 @@ type DatabaseOptions struct {
 	Charset      string
 }
 
-type Client struct {
-	Clients    []client.Client
-	ClientFile string
+type clientSettings struct {
+	clients    []client.Client
+	clientFile string
 }
 
-type CacheOptions struct {
+type cacheOptions struct {
 	Enabled string
 	Host    string
 	Port    string
 }
 
-type App struct {
-	DefaultServer
-	Client          Client
-	GRPCServer      Server
-	HTTPServer      Server
-	TokenOptions    TokenOptions
-	DatabaseOptions DatabaseOptions
-	CacheOptions    CacheOptions
+func Create() {
+	App = Application{
+		tokenOptions: TokenOptions{
+			Scheme:             os.Getenv("TOKEN_SCHEME"),
+			PrivateKeyPath:     os.Getenv("PRIVATE_KEY_PATH"),
+			PublicKeyPath:      os.Getenv("PUBLIC_KEY_PATH"),
+			AccessTokenExpire:  os.Getenv("ACCESS_TOKEN_EXPIRE"),
+			RefreshTokenExpire: os.Getenv("REFRESH_TOKEN_EXPIRE"),
+		},
+		grpcServer: Server{
+			Port: os.Getenv("GRPC_SERVER_PORT"),
+		},
+		httpServer: Server{
+			Port: os.Getenv("HTTP_SERVER_PORT"),
+		},
+		databaseOptions: databaseOptions{
+			Host:         os.Getenv("DB_HOST"),
+			Port:         os.Getenv("DB_PORT"),
+			User:         os.Getenv("DB_USER"),
+			Password:     os.Getenv("DB_PASSWORD"),
+			PasswordFile: os.Getenv("DB_PASSWORD_FILE"),
+			Database:     os.Getenv("DB_NAME"),
+			DatabaseFile: os.Getenv("DB_FILE_PATH"),
+			Engine:       os.Getenv("DB_ENGINE"),
+		},
+		cacheOptions: cacheOptions{
+			Enabled: os.Getenv("CACHE_ENABLED"),
+			Host:    os.Getenv("CACHE_HOST"),
+			Port:    os.Getenv("CACHE_PORT"),
+		},
+		clientSettings: clientSettings{
+			clientFile: os.Getenv("CLIENTS_FILE_PATH"),
+		},
+	}
 }
 
-func (app *App) LoadClients() {
-	clientList, err := client.GetClients(app.Client.ClientFile)
+func (a *Application) LoadClients() {
+	clientList, err := client.GetClients(a.clientSettings.clientFile)
 	if err != nil {
 		panic(err)
 	}
-	clients = append(app.Client.Clients, clientList...)
-	app.Client.Clients = clients
+	if len(clientList) == 0 {
+		panic("No clients found")
+	}
+	a.clientSettings.clients = clientList
 }
 
-func (app *App) ConnectToDatabase() {
+func (a *Application) ConnectToDatabase() {
 	options := database.Database{
-		Engine:       app.DatabaseOptions.Engine,
-		DatabaseFile: app.DatabaseOptions.DatabaseFile,
-		Host:         app.DatabaseOptions.Host,
-		Port:         app.DatabaseOptions.Port,
-		User:         app.DatabaseOptions.User,
-		Password:     app.DatabaseOptions.Password,
-		PasswordFile: app.DatabaseOptions.PasswordFile,
-		Database:     app.DatabaseOptions.Database,
-		Charset:      app.DatabaseOptions.Charset,
+		Engine:       a.databaseOptions.Engine,
+		DatabaseFile: a.databaseOptions.DatabaseFile,
+		Host:         a.databaseOptions.Host,
+		Port:         a.databaseOptions.Port,
+		User:         a.databaseOptions.User,
+		Password:     a.databaseOptions.Password,
+		PasswordFile: a.databaseOptions.PasswordFile,
+		Database:     a.databaseOptions.Database,
+		Charset:      a.databaseOptions.Charset,
 	}
 	if err := options.Connect(); err != nil {
 		panic(err)
 	}
 }
 
-func (app *App) ConfigureToken() {
-	token.SetPublicPrivateKey(app.TokenOptions.PublicKeyPath, app.TokenOptions.PrivateKeyPath)
-	token.SetOptions(app.TokenOptions.AccessTokenExpire, app.TokenOptions.RefreshTokenExpire, app.TokenOptions.Scheme)
+func (a *Application) ConfigureToken() {
+	token.SetPublicPrivateKey(a.tokenOptions.PublicKeyPath, a.tokenOptions.PrivateKeyPath)
+	token.SetOptions(a.tokenOptions.AccessTokenExpire, a.tokenOptions.RefreshTokenExpire, a.tokenOptions.Scheme)
 }
 
-func (app *App) Cache() {
-	if app.CacheOptions.Enabled != "true" {
+func (a *Application) Cache() {
+	if a.cacheOptions.Enabled != "true" {
 		return
 	}
 
-	defer func() {
-		if r := recover(); r != nil {
-			fmt.Println("Recovered from panic", r)
-		}
-	}()
-
 	if err := cache.Redis(); err != nil {
-		panic(err)
+		fmt.Println("Redis connection failed:", err)
 	}
 }
 
-func (app *App) StartServer() {
-	if app.GRPCServer.Port == "" {
-		panic("Port not set")
+func (a *Application) StartServer() {
+	if a.grpcServer.Port == "" {
+		panic("gRPC Server port not set")
 	}
 	var lis net.Listener
 	var err error
-	address := fmt.Sprintf("%s:%s", app.GRPCServer.Host, app.GRPCServer.Port)
+	address := fmt.Sprintf("%s:%s", a.grpcServer.Host, a.grpcServer.Port)
 
 	if lis, err = net.Listen("tcp", address); err != nil {
 		panic(err)
@@ -143,21 +177,21 @@ func (app *App) StartServer() {
 		grpc.ChainUnaryInterceptor(clientInterceptor, token.AuthInterceptor),
 		grpc.ChainStreamInterceptor(),
 	)
-	app.RegisterGRPCServices(s)
+	a.RegisterGRPCServices(s)
 	go func() {
 		fmt.Println("GRPC Server running on: ", lis.Addr())
 		if err := s.Serve(lis); err != nil {
 			log.Fatalf("Failed to serve gRPC server: %v", err)
 		}
 	}()
-	app.StartHTTPServer()
+	a.StartHTTPServer()
 	if err != nil {
 		log.Fatalln("Failed to dial server:", err)
 	}
 
 }
 
-func (app *App) RegisterGRPCServices(server *grpc.Server) {
+func (a *Application) RegisterGRPCServices(server *grpc.Server) {
 	v1.RegisterAuthenticationServiceServer(server, &services.AuthenticationServer{})
 	v1.RegisterUserServiceServer(server, &services.UserServer{})
 	v1.RegisterSessionServiceServer(server, &services.SessionServer{})
@@ -166,8 +200,8 @@ func (app *App) RegisterGRPCServices(server *grpc.Server) {
 	reflection.Register(server)
 }
 
-func (app *App) StartHTTPServer() {
-	address := fmt.Sprintf("%s:%s", app.GRPCServer.Host, app.GRPCServer.Port)
+func (a *Application) StartHTTPServer() {
+	address := fmt.Sprintf("%s:%s", a.grpcServer.Host, a.grpcServer.Port)
 	ctx := context.Background()
 	conn, err := grpc.DialContext(
 		ctx,
@@ -183,8 +217,8 @@ func (app *App) StartHTTPServer() {
 			return metadata.Pairs("client_id", req.Header.Get("Client_id"))
 		}),
 	)
-	app.RegisterHTTPServices(ctx, gwMux, conn)
-	httpServerAddr := fmt.Sprintf("%s:%s", app.HTTPServer.Host, app.HTTPServer.Port)
+	a.RegisterHTTPServices(ctx, gwMux, conn)
+	httpServerAddr := fmt.Sprintf("%s:%s", a.httpServer.Host, a.httpServer.Port)
 	gwServer := &http.Server{
 		Addr:    httpServerAddr,
 		Handler: gwMux,
@@ -195,7 +229,7 @@ func (app *App) StartHTTPServer() {
 	}
 }
 
-func (app *App) RegisterHTTPServices(ctx context.Context, mux *runtime.ServeMux, conn *grpc.ClientConn) {
+func (a *Application) RegisterHTTPServices(ctx context.Context, mux *runtime.ServeMux, conn *grpc.ClientConn) {
 	if err := v1.RegisterAuthenticationServiceHandler(ctx, mux, conn); err != nil {
 		log.Fatalln("Failed to register gateway:", err)
 	}
@@ -226,7 +260,7 @@ func clientInterceptor(ctx context.Context, req interface{}, _ *grpc.UnaryServer
 	if clientID == "" {
 		return nil, status.Errorf(codes.Unauthenticated, responses.ClientRequired)
 	}
-	mdClient := client.GetClient(clientID, clients)
+	mdClient := client.GetClient(clientID, App.clientSettings.clients)
 	if mdClient == nil {
 		return nil, status.Errorf(codes.Unauthenticated, responses.InvalidClient)
 	}
