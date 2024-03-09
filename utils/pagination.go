@@ -12,37 +12,46 @@ type PageMetadata struct {
 	Search     string
 }
 
-func (l *PageMetadata) SetTotalCount(count int32) {
-	if count <= 0 || l.PageSize <= 0 {
-		l.TotalCount = 0
-		l.TotalPages = 0
-		return
+func (p *PageMetadata) SetTotalCount(count int32) {
+	if count <= 0 || p.PageSize <= 0 {
+		p.TotalCount = 0
+		p.TotalPages = 0
+	} else {
+		p.TotalCount = count
+		p.TotalPages = count / p.PageSize
+		if count%p.PageSize != 0 {
+			p.TotalPages++
+		}
 	}
-
-	l.TotalCount = count
-	l.TotalPages = count / l.PageSize
-	if count%l.PageSize != 0 {
-		l.TotalPages++
-	}
+	p.updatePageNavigation()
 }
 
-func (l *PageMetadata) SetPage(page int32) {
+func (p *PageMetadata) SetPage(page int32) {
 	if page <= 0 {
-		page = 1
+		p.Page = 1
+	} else if page > p.TotalPages {
+		p.Page = p.TotalPages
+	} else {
+		p.Page = page
 	}
-
-	l.Page = page
-	l.HasPrev = page > 1
-	l.HasNext = page < l.TotalPages
+	p.updatePageNavigation()
 }
 
-func (l *PageMetadata) Offset() int32 {
-	return (l.Page - 1) * l.PageSize
+func (p *PageMetadata) updatePageNavigation() {
+	p.HasPrev = p.Page > 1
+	p.HasNext = p.Page < p.TotalPages
 }
 
-func (l *PageMetadata) ConvertToOrder() string {
-	if len(l.OrderBy) <= 0 || len(l.Order) <= 0 {
+func (p *PageMetadata) Offset() int32 {
+	if p.Page <= 0 {
+		return 0
+	}
+	return (p.Page - 1) * p.PageSize
+}
+
+func (p *PageMetadata) ConvertToOrder() string {
+	if len(p.OrderBy) <= 0 || len(p.Order) <= 0 {
 		return "created_at desc"
 	}
-	return l.OrderBy + " " + l.Order
+	return p.OrderBy + " " + p.Order
 }
