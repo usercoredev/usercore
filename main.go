@@ -7,7 +7,7 @@ import (
 func main() {
 	usercore.Create()
 	usercore.App.ConfigureToken()
-	//usercore.ConnectToDatabase()
+	usercore.App.ConnectToDatabase()
 	usercore.App.Cache()
 	usercore.App.LoadClients()
 	usercore.App.StartServer()

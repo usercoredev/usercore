@@ -17,6 +17,8 @@
 !vault/example/jwt.public
 !vault/example/redis-pass.txt
 !vault/example/db-pass.txt
+!vault/example/certs/server-cert.pem
+!vault/example/certs/server-key.pem
 # !Makefile
 
 # ...even if they are in subdirectories

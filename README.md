@@ -62,7 +62,7 @@ version: "3.8"
 
 services:
   usercore_app:
-    image: 58a25df08bd8
+    image: d053dbef893abebffa6eb0a17cb523ca63c8eab1d7c3c620fd701af98d0a977e
     container_name: usercore_app
     depends_on:
       usercore_database:
@@ -71,8 +71,8 @@ services:
       - ./service/.env.dev
     networks:
       - usercore_net
-    volumes:
-      - app_data:/app
+    #volumes:
+    # - app_data:/app
     ports:
       - 8000:8000
       - 9000:9000
@@ -81,6 +81,7 @@ services:
       - jwt_public_key
       - clients
       - db_password
+      - server_cert.pem
       - cache_password
     deploy:
       restart_policy:
@@ -100,19 +101,19 @@ services:
       REDIS_PASSWORD: run/secrets/cache_password
       REDIS_USER: usercore
       REDIS_PORT: 6379
-    volumes:
-      - cache_data:/data
+    #volumes:
+    #  - cache_data:/data
     ports:
       - 6379:6379
   usercore_database:
     image: mariadb:latest
     container_name: usercore_database
-    hostname: db
+    hostname: usercore_db
     networks:
       - usercore_net
     healthcheck:
-      interval: 15s
-      retries: 3
+      interval: 5s
+      retries: 10
       test:
         [
           "CMD",
@@ -124,17 +125,22 @@ services:
       timeout: 30s
     secrets:
       - db_password
-    volumes:
-      - db_data:/var/lib/mysql
+      - source: server_cert.pem
+        target: /etc/mysql/certs/server-cert.pem
+      - source: server_key.pem
+        target: /etc/mysql/certs/server-key.pem
+    #volumes:
+    #  - db_data:/var/lib/mysql
+    command: >
+      --ssl-cert=/etc/mysql/certs/server-cert.pem
+      --ssl-key=/etc/mysql/certs/server-key.pem
     environment:
       MARIADB_USER: usercore
-      MARIADB_ROOT_PASSWORD_FILE: /run/secrets/db_password
-      MARIADB_PASSWORD_FILE: /run/secrets/db_password
       MARIADB_DATABASE: usercore
+      MARIADB_PASSWORD_FILE: /run/secrets/db_password
       MARIADB_PORT: 3306
-      MARIADB_CHARSET: utf8mb4
-      MARIADB_COLLATION: utf8mb4_general_ci
-    command: "--default-authentication-plugin=mysql_native_password"
+      MARIADB_RANDOM_ROOT_PASSWORD: true
+      MARIADB_CHARSET: utf8
 secrets:
   jwt_private_key:
     file: ./service/vault/example/jwt.private
@@ -142,16 +148,20 @@ secrets:
     file: ./service/vault/example/jwt.public
   clients:
     file: ./service/vault/example/clients.json
-  db_password:
-    file: ./service/vault/example/db-pass.txt
+  server_cert.pem:
+    file: ./service/vault/example/certs/server-cert.pem
+  server_key.pem:
+    file: ./service/vault/example/certs/server-key.pem
   cache_password:
     file: ./service/vault/example/redis-pass.txt
+  db_password:
+    file: ./service/vault/example/db-pass.txt
 networks:
   usercore_net:
     driver: bridge
-volumes:
-  db_data:
-  cache_data:
-  app_data:
+#volumes:
+#db_data:
+#cache_data:
+#app_data:
 
 ```
