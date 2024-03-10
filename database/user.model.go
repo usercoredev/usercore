@@ -18,15 +18,14 @@ import (
 type User struct {
 	UUIDBaseModel
 
-	Name string `gorm:"not null" json:"name"`
+	Name string `gorm:"not null" json:"name" sortable:"true"`
 
-	Email             string     `gorm:"unique" json:"email"`
-	EmailVerified     bool       `gorm:"default:false" json:"email_verified,omitempty"`
+	Email             string     `gorm:"unique" json:"email" sortable:"true"`
+	EmailVerified     bool       `gorm:"default:false" json:"email_verified,omitempty" sortable:"true"`
 	EmailVerifyCode   string     `gorm:"default:null" json:"-"`
 	EmailVerifySentAt *time.Time `gorm:"default:null" json:"-"`
 
-	Password     string `json:"-"`
-	PasswordSalt string `json:"-"`
+	Password string `json:"-"`
 
 	Sessions        []Session        `json:"sessions,omitempty" gorm:"foreignKey:UserID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE;"`
 	Profile         *Profile         `json:"profile,omitempty" gorm:"constraint:OnUpdate:CASCADE,OnDelete:CASCADE;"`
@@ -34,31 +33,31 @@ type User struct {
 	SocialProviders []SocialProvider `json:"-" gorm:"foreignKey:UserID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE;"`
 }
 
-func (user *User) BeforeCreate(tx *gorm.DB) (err error) {
-	user.ID = uuid.New()
+func (u *User) BeforeCreate(tx *gorm.DB) (err error) {
+	u.ID = uuid.New()
 	return nil
 }
 
 // ComparePassword compares the password of a user
-func (user *User) ComparePassword(password string) bool {
-	return utils.CheckPasswordHash(password, user.Password)
+func (u *User) ComparePassword(password string) bool {
+	return utils.CheckPasswordHash(password, u.Password)
 }
 
 // SetPassword sets the password of a user
-func (user *User) SetPassword(password string) error {
+func (u *User) SetPassword(password string) error {
 	hashedPassword, err := utils.GeneratePasswordHash(password)
 	if err != nil {
 		return err
 	}
-	user.Password = hashedPassword
+	u.Password = hashedPassword
 	return nil
 }
 
-func (user *User) UserSessionLimiter() error {
+func (u *User) UserSessionLimiter() error {
 	limit, err := strconv.Atoi(os.Getenv("MAX_SESSIONS_PER_USER"))
 
-	if len(user.Sessions) >= limit {
-		if err = DB.Delete(&user.Sessions[0]).Error; err != nil {
+	if len(u.Sessions) >= limit {
+		if err = DB.Delete(&u.Sessions[0]).Error; err != nil {
 			return err
 		}
 	}
@@ -66,36 +65,36 @@ func (user *User) UserSessionLimiter() error {
 }
 
 // CheckPasswordResetToken checks the password reset code of a user
-func (user *User) CheckPasswordResetToken(token string) bool {
-	if len(user.PasswordReset) > 0 {
-		return user.PasswordReset[0].CheckResetToken(token)
+func (u *User) CheckPasswordResetToken(token string) bool {
+	if len(u.PasswordReset) > 0 {
+		return u.PasswordReset[0].CheckResetToken(token)
 	}
 	return false
 }
 
 // SetEmailVerifyCode verifies the email of a user
-func (user *User) SetEmailVerifyCode(code string) {
-	user.EmailVerifyCode = code
+func (u *User) SetEmailVerifyCode(code string) {
+	u.EmailVerifyCode = code
 	currentTime := utils.GetCurrentTime()
-	user.EmailVerifySentAt = &currentTime
+	u.EmailVerifySentAt = &currentTime
 }
 
 // VerifyEmail verifies the email of a user
-func (user *User) VerifyEmail(code string) bool {
-	if user.EmailVerifyCode == code {
-		user.EmailVerified = true
-		user.EmailVerifyCode = ""
-		user.EmailVerifySentAt = nil
+func (u *User) VerifyEmail(code string) bool {
+	if u.EmailVerifyCode == code {
+		u.EmailVerified = true
+		u.EmailVerifyCode = ""
+		u.EmailVerifySentAt = nil
 		return true
 	}
 	return false
 }
 
 // UpdateUserEmail updates the email of a user and sets the email verified to false and email verify code to null
-func (user *User) UpdateUserEmail(email string) {
-	user.EmailVerified = false
-	user.EmailVerifyCode = ""
-	user.Email = email
+func (u *User) UpdateUserEmail(email string) {
+	u.EmailVerified = false
+	u.EmailVerifyCode = ""
+	u.Email = email
 }
 
 // GetUserByEmail gets a user by email
@@ -110,9 +109,9 @@ func GetUserByEmail(e string) (*User, error) {
 	return nil, errors.New("email is empty")
 }
 
-func (user *User) CheckPasswordResetCode(code string) bool {
-	if len(user.PasswordReset) > 0 {
-		return user.PasswordReset[0].CheckResetToken(code)
+func (u *User) CheckPasswordResetCode(code string) bool {
+	if len(u.PasswordReset) > 0 {
+		return u.PasswordReset[0].CheckResetToken(code)
 	}
 	return false
 }
@@ -140,9 +139,9 @@ func GetUserProfile(id uuid.UUID) (*User, error) {
 	return &user, nil
 }
 
-func (user *User) GetLastPasswordReset() (*PasswordReset, error) {
-	if len(user.PasswordReset) > 0 {
-		return &user.PasswordReset[0], nil
+func (u *User) GetLastPasswordReset() (*PasswordReset, error) {
+	if len(u.PasswordReset) > 0 {
+		return &u.PasswordReset[0], nil
 	}
 	return nil, errors.New("password reset not found")
 }
@@ -151,21 +150,21 @@ func userPreload() *gorm.DB {
 	return DB.Preload(clause.Associations)
 }
 
-func (user *User) CreateSession(ctx context.Context) (*token.DefaultToken, error) {
+func (u *User) CreateSession(ctx context.Context) (*token.DefaultToken, error) {
 	sClient := ctx.Value(client.Key).(*client.Client)
-	jwt, expiresIn, err := token.CreateJWT(user.ID)
+	jwt, expiresIn, err := token.CreateJWT(u.ID)
 	if err != nil {
 		return nil, err
 	}
 
-	rToken, refreshTokenExpireAt := token.CreateRefreshToken(user.ID)
+	rToken, refreshTokenExpireAt := token.CreateRefreshToken(u.ID)
 
-	if err := user.UserSessionLimiter(); err != nil {
+	if err := u.UserSessionLimiter(); err != nil {
 		return nil, err
 	}
 
 	var session = Session{
-		UserID:       user.ID,
+		UserID:       u.ID,
 		RefreshToken: rToken,
 		ExpiresAt:    *refreshTokenExpireAt,
 		ClientID:     sClient.ID,
@@ -187,7 +186,9 @@ func GetUsers(md utils.PageMetadata) ([]*User, int64, error) {
 	var users []*User
 	likeOperator := getLikeOperator(DB)
 
-	query := DB.Model(&User{}).
+	var user = User{}
+
+	query := DB.Model(&user).
 		Joins("LEFT JOIN profiles ON profiles.user_id = users.id").
 		Where(fmt.Sprintf("users.name %s ?", likeOperator), "%"+md.Search+"%").
 		Or(fmt.Sprintf("users.email %s ?", likeOperator), "%"+md.Search+"%").
@@ -200,7 +201,7 @@ func GetUsers(md utils.PageMetadata) ([]*User, int64, error) {
 		Or(fmt.Sprintf("profiles.locale %s ?", likeOperator), "%"+md.Search+"%").
 		Or(fmt.Sprintf("profiles.education %s ?", likeOperator), "%"+md.Search+"%").
 		Count(&count).
-		Order(md.ConvertToOrder()).
+		Order(user.ConvertToOrder(md)).
 		Offset(int(md.Offset())).
 		Limit(int(md.PageSize)).
 		Find(&users)

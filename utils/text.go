@@ -10,12 +10,6 @@ import (
 
 var localRand = rand.New(rand.NewSource(time.Now().UnixNano()))
 
-func GenerateOTPCode() (string, error) {
-	otpLength := getOTPLength()
-	otpCode := RandomString(otpLength)
-	return otpCode, nil
-}
-
 func RandomString(length int8) string {
 	if length <= 0 {
 		return ""
@@ -32,6 +26,12 @@ func randomInt(min, max int) int {
 }
 
 const defaultOTPLength = 6
+
+func GenerateOTPCode() (string, error) {
+	otpLength := getOTPLength()
+	otpCode := RandomString(otpLength)
+	return otpCode, nil
+}
 
 func getOTPLength() int8 {
 	otpLimitStr := os.Getenv("OTP_CODE_LENGTH")
