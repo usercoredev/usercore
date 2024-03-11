@@ -189,6 +189,7 @@ func GetUsers(md utils.PageMetadata) ([]*User, int64, error) {
 	var user = User{}
 
 	query := DB.Model(&user).
+		Preload("Profile").
 		Joins("LEFT JOIN profiles ON profiles.user_id = users.id").
 		Where(fmt.Sprintf("users.name %s ?", likeOperator), "%"+md.Search+"%").
 		Or(fmt.Sprintf("users.email %s ?", likeOperator), "%"+md.Search+"%").
