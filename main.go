@@ -5,10 +5,10 @@ import (
 )
 
 func main() {
-	usercore.Create()
-	usercore.App.ConfigureToken()
-	usercore.App.ConnectToDatabase()
-	usercore.App.Cache()
-	usercore.App.LoadClients()
-	usercore.App.StartServer()
+	usercoreApp := usercore.Create()
+	usercoreApp.ConfigureToken()
+	usercoreApp.ConnectToDatabase()
+	usercoreApp.SetupCache()
+	usercoreApp.LoadClients()
+	usercoreApp.StartServer()
 }

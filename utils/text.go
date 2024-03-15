@@ -27,10 +27,10 @@ func randomInt(min, max int) int {
 
 const defaultOTPLength = 6
 
-func GenerateOTPCode() (string, error) {
+func GenerateOTPCode() (code string) {
 	otpLength := getOTPLength()
-	otpCode := RandomString(otpLength)
-	return otpCode, nil
+	code = RandomString(otpLength)
+	return
 }
 
 func getOTPLength() int8 {

@@ -112,20 +112,13 @@ func (d *Database) connectMySQL() (*gorm.DB, error) {
 		if ok := caCertPool.AppendCertsFromPEM(caCert); !ok {
 			return nil, fmt.Errorf("failed to append CA certificate to pool")
 		}
-
-		// Generate a unique identifier for this TLS configuration
 		tlsConfigID := fmt.Sprintf("customTLS_%v", time.Now().UnixNano())
-
-		// Setup TLS configuration
 		tlsConfig := &tls.Config{
 			RootCAs: caCertPool,
 		}
-
-		// Register the TLS configuration with the unique identifier
 		if err := mysql.RegisterTLSConfig(tlsConfigID, tlsConfig); err != nil {
 			return nil, fmt.Errorf("failed to register TLS config: %v", err)
 		}
-
 		tlsEnabled = tlsConfigID
 	}
 

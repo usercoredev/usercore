@@ -10,7 +10,7 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-func ClientInterceptor(clients []client.Client) grpc.UnaryServerInterceptor {
+func ClientInterceptor(clients []client.Item) grpc.UnaryServerInterceptor {
 	return func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
 		md, ok := metadata.FromIncomingContext(ctx)
 		if !ok || len(md.Get("client")) == 0 {
