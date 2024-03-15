@@ -69,7 +69,6 @@ func (s *AuthenticationServer) SignUp(ctx context.Context, in *v1.SignUpRequest)
 	return &v1.AuthenticationResponse{
 		AccessToken:  result.AccessToken,
 		RefreshToken: result.RefreshToken,
-		ExpiresIn:    result.ExpiresIn,
 	}, nil
 }
 
@@ -100,12 +99,11 @@ func (s *AuthenticationServer) SignIn(ctx context.Context, in *v1.SignInRequest)
 	return &v1.AuthenticationResponse{
 		AccessToken:  result.AccessToken,
 		RefreshToken: result.RefreshToken,
-		ExpiresIn:    result.ExpiresIn,
 	}, nil
 }
 
 func (s *AuthenticationServer) RefreshToken(ctx context.Context, in *v1.RefreshTokenRequest) (*v1.AuthenticationResponse, error) {
-	ctxClient := ctx.Value(client.Key).(*client.Client)
+	ctxClient := ctx.Value(client.Key).(*client.Item)
 
 	refreshTokenRequest := validations.RefreshTokenRequest{
 		RefreshToken: in.RefreshToken,
@@ -140,7 +138,6 @@ func (s *AuthenticationServer) RefreshToken(ctx context.Context, in *v1.RefreshT
 	return &v1.AuthenticationResponse{
 		AccessToken:  response.AccessToken,
 		RefreshToken: response.RefreshToken,
-		ExpiresIn:    response.ExpiresIn,
 	}, nil
 
 }
@@ -154,8 +151,8 @@ func (s *AuthenticationServer) ResetPassword(_ context.Context, in *v1.ResetPass
 		return nil, status.Errorf(codes.InvalidArgument, responses.ValidationError)
 	}
 
-	otpCode, err := utils.GenerateOTPCode()
-	if err != nil {
+	otpCode := utils.GenerateOTPCode()
+	if otpCode == "" {
 		return nil, status.Errorf(codes.Internal, responses.ServerError)
 	}
 

@@ -104,7 +104,7 @@ func (session *Session) IsActive() bool {
 
 func (session *Session) RefreshUserToken() (*token.DefaultToken, error) {
 
-	jwt, expiresIn, err := token.CreateJWT(session.UserID)
+	jwt, err := token.CreateJWT(session.UserID)
 	if err != nil {
 		return nil, err
 	}
@@ -120,6 +120,5 @@ func (session *Session) RefreshUserToken() (*token.DefaultToken, error) {
 	return &token.DefaultToken{
 		AccessToken:  jwt,
 		RefreshToken: rToken,
-		ExpiresIn:    expiresIn,
 	}, nil
 }

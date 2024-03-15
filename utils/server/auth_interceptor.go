@@ -34,7 +34,5 @@ func AuthInterceptor(ctx context.Context, req interface{}, info *grpc.UnaryServe
 			ctx = context.WithValue(ctx, "claims", claims)
 		}
 	}
-
-	// Call the handler
 	return handler(ctx, req)
 }

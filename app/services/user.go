@@ -28,6 +28,14 @@ type UserServer struct {
 	v1.UnimplementedUserServiceServer
 }
 
+func userCacheKey(id string) string {
+	return fmt.Sprintf("%s:%s", cache.Client.UserPrefix, id)
+}
+
+func userProfileCacheKey(id string) string {
+	return fmt.Sprintf("%s:%s", userCacheKey(id), cache.Client.UserProfilePrefix)
+}
+
 func (s *UserServer) IsAuthorizationRequired() bool {
 	return true
 }
@@ -64,18 +72,15 @@ func (s *UserServer) VerifyToken(ctx context.Context, in *v1.VerifyTokenRequest)
 	return &v1.AuthenticationResponse{
 		AccessToken:  response.AccessToken,
 		RefreshToken: response.RefreshToken,
-		ExpiresIn:    response.ExpiresIn,
 	}, nil
 }
 
 func (s *UserServer) GetUser(ctx context.Context, _ *v1.GetUserRequest) (*v1.GetUserResponse, error) {
 	claims := ctx.Value("claims").(*token.Token)
-	userCacheKey := fmt.Sprintf(cache.UserCacheKey, claims.ID)
-
 	var cachedUser database.User
-	cacheErr := cache.Get(userCacheKey, &cachedUser)
+	cacheErr := cache.Get(userCacheKey(claims.ID), &cachedUser)
 	if cacheErr != nil {
-		if !errors.Is(cacheErr, redis.Nil) && !errors.Is(cacheErr, cache.NotEnabledErr) {
+		if !errors.Is(cacheErr, redis.Nil) && !errors.Is(cacheErr, cache.NotEnabled) {
 			return nil, status.Errorf(codes.NotFound, responses.NotFound)
 		}
 	}
@@ -91,7 +96,7 @@ func (s *UserServer) GetUser(ctx context.Context, _ *v1.GetUserRequest) (*v1.Get
 		return nil, status.Errorf(codes.Internal, responses.ServerError)
 	}
 
-	err = cache.Set(userCacheKey, user, cache.UserCacheExpiration)
+	err = cache.Set(userCacheKey(claims.ID), user, cache.Client.UserCacheExpiration)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, responses.ServerError)
 	}
@@ -112,10 +117,9 @@ func userToGetUserResponse(user *database.User) *v1.GetUserResponse {
 
 func (s *UserServer) GetUserProfile(ctx context.Context, _ *v1.GetUserProfileRequest) (*v1.GetUserProfileResponse, error) {
 	claims := ctx.Value("claims").(*token.Token)
-	userProfileCacheKey := fmt.Sprintf(cache.UserProfileCacheKey, claims.ID)
 
 	var cachedProfile database.Profile
-	cacheErr := cache.Get(userProfileCacheKey, &cachedProfile)
+	cacheErr := cache.Get(userProfileCacheKey(claims.ID), &cachedProfile)
 	if cacheErr != nil {
 		if !errors.Is(cacheErr, redis.Nil) {
 			return nil, status.Errorf(codes.NotFound, responses.ProfileNotFound)
@@ -137,7 +141,7 @@ func (s *UserServer) GetUserProfile(ctx context.Context, _ *v1.GetUserProfileReq
 		return nil, status.Errorf(codes.NotFound, responses.ProfileNotFound)
 	}
 
-	err = cache.Set(userProfileCacheKey, user.Profile, cache.UserProfileCacheExpiration)
+	err = cache.Set(userProfileCacheKey(claims.ID), user.Profile, cache.Client.UserProfileCacheExpiration)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, responses.ServerError)
 	}
@@ -166,9 +170,6 @@ func profileToGetUserProfileResponse(profile *database.Profile) *v1.GetUserProfi
 // UpdateUser TODO: Refactor this function
 func (s *UserServer) UpdateUser(ctx context.Context, in *v1.UpdateUserRequest) (*v1.DefaultResponse, error) {
 	claims := ctx.Value("claims").(*token.Token)
-
-	userCacheKey := fmt.Sprintf(cache.UserCacheKey, claims.ID)
-	userProfileCacheKey := fmt.Sprintf(cache.UserProfileCacheKey, claims.ID)
 
 	user, err := database.GetUserByID(uuid.MustParse(claims.ID), true)
 	if err != nil {
@@ -225,11 +226,11 @@ func (s *UserServer) UpdateUser(ctx context.Context, in *v1.UpdateUserRequest) (
 		return nil, status.Errorf(codes.Internal, responses.ServerError)
 	}
 
-	if err := cache.Set(userCacheKey, user, cache.UserCacheExpiration); err != nil {
+	if err = cache.Set(userCacheKey(claims.ID), user, cache.Client.UserCacheExpiration); err != nil {
 		return nil, status.Errorf(codes.Internal, responses.ServerError)
 	}
 	if user.Profile != nil {
-		if err := cache.Set(userProfileCacheKey, user.Profile, cache.UserProfileCacheExpiration); err != nil {
+		if err := cache.Set(userProfileCacheKey(claims.ID), user.Profile, cache.Client.UserProfileCacheExpiration); err != nil {
 			return nil, status.Errorf(codes.Internal, responses.ServerError)
 		}
 	}
@@ -245,8 +246,6 @@ func (s *UserServer) DeleteUser(ctx context.Context, _ *v1.DeleteUserRequest) (*
 
 func (s *UserServer) ChangeEmail(ctx context.Context, in *v1.ChangeEmailRequest) (*v1.DefaultResponse, error) {
 	claims := ctx.Value("claims").(*token.Token)
-
-	userCacheKey := fmt.Sprintf(cache.UserCacheKey, claims.ID)
 
 	changeEmailRequest := &validations.ChangeEmailRequest{
 		Email:    in.Email,
@@ -281,7 +280,7 @@ func (s *UserServer) ChangeEmail(ctx context.Context, in *v1.ChangeEmailRequest)
 		return nil, status.Errorf(codes.Internal, responses.ServerError)
 	}
 
-	if err := cache.Set(userCacheKey, user, cache.UserCacheExpiration); err != nil {
+	if err := cache.Set(userCacheKey(claims.ID), user, cache.Client.UserCacheExpiration); err != nil {
 		return nil, status.Errorf(codes.Internal, responses.ServerError)
 	}
 
@@ -348,14 +347,12 @@ func (s *UserServer) SendVerificationCode(ctx context.Context, in *v1.SendVerifi
 		if !utils.CompareTimesByGivenMinute(utils.GetCurrentTime(), user.EmailVerifySentAt, 3) {
 			return nil, status.Errorf(codes.ResourceExhausted, responses.TooManyVerifyRequest)
 		}
-
-		otpCode, err := utils.GenerateOTPCode()
-		// TODO: Remove this line
-		fmt.Println(otpCode)
-
-		if err != nil {
+		otpCode := utils.GenerateOTPCode()
+		if otpCode == "" {
 			return nil, status.Errorf(codes.Internal, responses.ServerError)
 		}
+		// TODO: Remove this line
+		fmt.Println(otpCode)
 
 		/*
 			language := os.Getenv("APP_DEFAULT_LANGUAGE")
@@ -393,7 +390,6 @@ func (s *UserServer) SendVerificationCode(ctx context.Context, in *v1.SendVerifi
 
 func (s *UserServer) Verify(ctx context.Context, in *v1.VerifyRequest) (*v1.DefaultResponse, error) {
 	claims := ctx.Value("claims").(*jwt.RegisteredClaims)
-	userCacheKey := fmt.Sprintf(cache.UserCacheKey, claims.ID)
 
 	verifyRequest := &validations.VerifyRequest{
 		Code: in.Code,
@@ -421,7 +417,7 @@ func (s *UserServer) Verify(ctx context.Context, in *v1.VerifyRequest) (*v1.Defa
 			if err = database.DB.Session(&gorm.Session{FullSaveAssociations: true}).Save(&user).Error; err != nil {
 				return nil, status.Errorf(codes.Internal, responses.ServerError)
 			}
-			if err := cache.Set(userCacheKey, user, cache.UserCacheExpiration); err != nil {
+			if err = cache.Set(userCacheKey(claims.ID), user, cache.Client.UserCacheExpiration); err != nil {
 				return nil, status.Errorf(codes.Internal, responses.ServerError)
 			}
 			return &v1.DefaultResponse{
@@ -435,10 +431,7 @@ func (s *UserServer) Verify(ctx context.Context, in *v1.VerifyRequest) (*v1.Defa
 }
 
 func (s *UserServer) GetUsers(ctx context.Context, in *v1.ListRequest) (*v1.GetUsersResponse, error) {
-	// TODO: Implement better role system
-	if !ctx.Value("claims").(*token.Token).HasRole("admin") {
-		return nil, status.Errorf(codes.PermissionDenied, responses.Forbidden)
-	}
+	// TODO: Implement role system
 
 	md := utils.PageMetadata{
 		OrderBy:  in.OrderBy,

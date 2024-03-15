@@ -151,15 +151,15 @@ func userPreload() *gorm.DB {
 }
 
 func (u *User) CreateSession(ctx context.Context) (*token.DefaultToken, error) {
-	sClient := ctx.Value(client.Key).(*client.Client)
-	jwt, expiresIn, err := token.CreateJWT(u.ID)
+	sessionClient := ctx.Value(client.Key).(*client.Item)
+	jwt, err := token.CreateJWT(u.ID)
 	if err != nil {
 		return nil, err
 	}
 
 	rToken, refreshTokenExpireAt := token.CreateRefreshToken(u.ID)
 
-	if err := u.UserSessionLimiter(); err != nil {
+	if err = u.UserSessionLimiter(); err != nil {
 		return nil, err
 	}
 
@@ -167,17 +167,16 @@ func (u *User) CreateSession(ctx context.Context) (*token.DefaultToken, error) {
 		UserID:       u.ID,
 		RefreshToken: rToken,
 		ExpiresAt:    *refreshTokenExpireAt,
-		ClientID:     sClient.ID,
-		ClientName:   sClient.Name,
+		ClientID:     sessionClient.ID,
+		ClientName:   sessionClient.Name,
 	}
-	if err := DB.Model(&Session{}).Create(&session).Error; err != nil {
+	if err = DB.Model(&Session{}).Create(&session).Error; err != nil {
 		return nil, err
 	}
 
 	return &token.DefaultToken{
 		AccessToken:  jwt,
 		RefreshToken: rToken,
-		ExpiresIn:    expiresIn,
 	}, nil
 }
 

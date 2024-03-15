@@ -16,18 +16,11 @@ import (
 	"time"
 )
 
+type Token jwt.RegisteredClaims
+
 type DefaultToken struct {
 	AccessToken  string
 	RefreshToken string
-	ExpiresIn    int64
-}
-
-type tokenOptions struct {
-	Scheme               string
-	AccessTokenExpire    time.Time
-	AccessTokenExpireIn  int
-	RefreshTokenExpire   time.Time
-	RefreshTokenExpireIn int
 }
 
 type PublicPrivateKey struct {
@@ -35,37 +28,27 @@ type PublicPrivateKey struct {
 	PrivateKey *rsa.PrivateKey
 }
 
-var publicPrivateKey PublicPrivateKey
+type Settings struct {
+	Scheme             string
+	Issuer             string
+	Audience           string
+	PrivateKeyPath     string
+	PublicKeyPath      string
+	RefreshTokenExpire string
+	AccessTokenExpire  string
+	PublicPrivateKey   PublicPrivateKey
+}
 
-func SetPublicPrivateKey(publicKeyPath, privateKeyPath string) {
-	publicKey := cipher.PublicKey(publicKeyPath)
-	privateKey := cipher.PrivateKey(privateKeyPath)
-	publicPrivateKey = PublicPrivateKey{
+var options *Settings
+
+func (o *Settings) Setup() {
+	publicKey := cipher.PublicKey(o.PublicKeyPath)
+	privateKey := cipher.PrivateKey(o.PrivateKeyPath)
+	o.PublicPrivateKey = PublicPrivateKey{
 		PublicKey:  publicKey,
 		PrivateKey: privateKey,
 	}
-}
-
-var options tokenOptions
-
-func SetOptions(accessTokenExpire, refreshTokenExpire, scheme string) {
-	accessTokenExpireInMinute, err := strconv.Atoi(accessTokenExpire)
-	if err != nil {
-		panic(err)
-	}
-
-	refreshTokenExpireInMinute, err := strconv.Atoi(refreshTokenExpire)
-	if err != nil {
-		panic(err)
-	}
-
-	options = tokenOptions{
-		Scheme:               scheme,
-		AccessTokenExpire:    time.Now().Add(time.Duration(accessTokenExpireInMinute) * time.Second),
-		AccessTokenExpireIn:  accessTokenExpireInMinute,
-		RefreshTokenExpire:   time.Now().Add(time.Duration(refreshTokenExpireInMinute) * time.Second),
-		RefreshTokenExpireIn: refreshTokenExpireInMinute,
-	}
+	options = o
 }
 
 func CreateRefreshToken(uuid uuid.UUID) (string, *time.Time) {
@@ -77,37 +60,45 @@ func CreateRefreshToken(uuid uuid.UUID) (string, *time.Time) {
 
 	random := hex.EncodeToString(buffer)
 
+	refreshTokenExpire, err := strconv.Atoi(options.RefreshTokenExpire)
+	if err != nil {
+		panic(err)
+	}
+	refreshTokenExpireTime := time.Now().Add(time.Duration(refreshTokenExpire) * time.Minute)
 	var content = uuid.String() + fmt.Sprint(time.Now().Unix()) + random
 	hashed := sha256.New()
 	hashed.Write([]byte(content))
 	refreshTokenString := hashed.Sum(nil)
-	return hex.EncodeToString(refreshTokenString), &options.RefreshTokenExpire
+	return hex.EncodeToString(refreshTokenString), &refreshTokenExpireTime
 }
 
-func CreateJWT(userId uuid.UUID) (string, int64, error) {
-	signer, err := jwt.NewSignerPS(jwt.PS512, publicPrivateKey.PrivateKey)
+func CreateJWT(userId uuid.UUID) (string, error) {
+	signer, err := jwt.NewSignerPS(jwt.PS512, options.PublicPrivateKey.PrivateKey)
 	if err != nil {
-		return "", 0, err
+		return "", err
 	}
 
+	accessTokenExpire, err := strconv.Atoi(options.AccessTokenExpire)
+	if err != nil {
+		panic(err)
+	}
 	claims := &jwt.RegisteredClaims{
-		Issuer:    os.Getenv("COMPANY_NAME"),
-		Subject:   os.Getenv("APP_NAME"),
+		Issuer:    os.Getenv("APP_NAME"),
 		ID:        userId.String(),
-		ExpiresAt: jwt.NewNumericDate(options.AccessTokenExpire),
+		ExpiresAt: jwt.NewNumericDate(time.Now().Add(time.Duration(accessTokenExpire) * time.Minute)),
 		NotBefore: jwt.NewNumericDate(time.Now()),
-		Audience:  []string{"admin"},
+		Audience:  jwt.Audience{options.Audience},
 	}
 	builder := jwt.NewBuilder(signer)
 	token, err := builder.Build(claims)
 	if err != nil {
-		return "", 0, err
+		return "", err
 	}
-	return token.String(), int64(options.AccessTokenExpireIn), nil
+	return token.String(), nil
 }
 
 func VerifyJWT(token string) (*Token, error) {
-	verifier, err := jwt.NewVerifierPS(jwt.PS512, publicPrivateKey.PublicKey)
+	verifier, err := jwt.NewVerifierPS(jwt.PS512, options.PublicPrivateKey.PublicKey)
 	if err != nil {
 		return nil, fmt.Errorf(responses.InvalidToken)
 	}
@@ -135,29 +126,10 @@ func VerifyJWT(token string) (*Token, error) {
 		return nil, fmt.Errorf(responses.TokenMalformed)
 	}
 
-	if !newClaims.IsSubject(os.Getenv("APP_NAME")) {
-		return nil, fmt.Errorf(responses.InvalidToken)
-	}
-
 	// verify claims as you wish
 	var isValid = newClaims.IsValidAt(time.Now())
 	if !isValid {
 		return nil, fmt.Errorf(responses.TokenExpired)
 	}
 	return (*Token)(&newClaims), nil
-}
-
-type Token jwt.RegisteredClaims
-
-func (t *Token) HasRole(roles ...string) bool {
-	tokenRoles := t.Audience
-
-	for _, role := range roles {
-		for _, tokenRole := range tokenRoles {
-			if role == tokenRole {
-				return true
-			}
-		}
-	}
-	return false
 }

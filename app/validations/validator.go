@@ -16,7 +16,7 @@ var validate = validator.New()
 
 func ValidateStruct(validatorStruct interface{}) []*ErrorResponse {
 	var errors []*ErrorResponse
-	validate.RegisterValidation("password", passwordValidator)
+	_ = validate.RegisterValidation("password", passwordValidator)
 	err := validate.Struct(validatorStruct)
 	if err != nil {
 		for _, err := range err.(validator.ValidationErrors) {
