@@ -2,7 +2,7 @@ package database
 
 import (
 	"github.com/google/uuid"
-	"github.com/usercoredev/usercore/utils"
+	"github.com/usercoredev/usercore/pagination"
 	"gorm.io/gorm"
 	"log"
 	"reflect"
@@ -46,7 +46,7 @@ func getSortableFields(v interface{}) map[string]bool {
 	return fields
 }
 
-func (bm *BaseModel) ConvertToOrder(metadata utils.PageMetadata) string {
+func (bm *BaseModel) ConvertToOrder(metadata pagination.PageMetadata) string {
 	if _, ok := getSortableFields(bm)[metadata.OrderBy]; !ok {
 		log.Println("Invalid order by field, defaulting to created_at")
 		metadata.OrderBy = "created_at"

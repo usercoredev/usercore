@@ -1,7 +1,7 @@
 package database
 
 import (
-	"github.com/usercoredev/usercore/utils"
+	"github.com/usercoredev/usercore/pagination"
 	"testing"
 )
 
@@ -26,7 +26,7 @@ func TestGetSortableFields(t *testing.T) {
 
 func TestConvertToOrder(t *testing.T) {
 	user := User{}
-	pm := &utils.PageMetadata{OrderBy: "1; DROP TABLE users", Order: ""}
+	pm := &pagination.PageMetadata{OrderBy: "1; DROP TABLE users", Order: ""}
 	orderClause := user.ConvertToOrder(*pm)
 	if orderClause != "created_at desc" {
 		t.Errorf("Expected default order clause for unsafe OrderBy, got %s", orderClause)

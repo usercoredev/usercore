@@ -1,4 +1,4 @@
-package utils
+package dateutil
 
 import (
 	"os"

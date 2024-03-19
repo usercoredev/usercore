@@ -2,7 +2,7 @@ package database
 
 import (
 	"github.com/google/uuid"
-	"github.com/usercoredev/usercore/utils/token"
+	"github.com/usercoredev/usercore/internal/token"
 	"time"
 )
 

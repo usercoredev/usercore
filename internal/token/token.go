@@ -10,13 +10,17 @@ import (
 	"github.com/cristalhq/jwt/v4"
 	"github.com/google/uuid"
 	"github.com/usercoredev/usercore/app/responses"
-	"github.com/usercoredev/usercore/utils/cipher"
+	"github.com/usercoredev/usercore/internal/cipher"
 	"os"
 	"strconv"
 	"time"
 )
 
 type Token jwt.RegisteredClaims
+
+type claims string
+
+var Claims claims = "claims"
 
 type DefaultToken struct {
 	AccessToken  string
@@ -82,7 +86,7 @@ func CreateJWT(userId uuid.UUID) (string, error) {
 	if err != nil {
 		panic(err)
 	}
-	claims := &jwt.RegisteredClaims{
+	registeredClaims := &jwt.RegisteredClaims{
 		Issuer:    os.Getenv("APP_NAME"),
 		ID:        userId.String(),
 		ExpiresAt: jwt.NewNumericDate(time.Now().Add(time.Duration(accessTokenExpire) * time.Minute)),
@@ -90,7 +94,7 @@ func CreateJWT(userId uuid.UUID) (string, error) {
 		Audience:  jwt.Audience{options.Audience},
 	}
 	builder := jwt.NewBuilder(signer)
-	token, err := builder.Build(claims)
+	token, err := builder.Build(registeredClaims)
 	if err != nil {
 		return "", err
 	}

@@ -3,13 +3,11 @@ package services
 import (
 	"context"
 	"errors"
-	"github.com/cristalhq/jwt/v4"
 	"github.com/google/uuid"
 	v1 "github.com/usercoredev/proto/api/v1"
 	"github.com/usercoredev/usercore/app/responses"
-	"github.com/usercoredev/usercore/database"
-	"github.com/usercoredev/usercore/utils/server"
-	"github.com/usercoredev/usercore/utils/token"
+	database2 "github.com/usercoredev/usercore/internal/database"
+	token2 "github.com/usercoredev/usercore/internal/token"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -17,7 +15,7 @@ import (
 )
 
 type SessionServer struct {
-	server.AuthorizationRequired
+	token2.AuthorizationRequired
 	v1.UnimplementedSessionServiceServer
 }
 
@@ -26,9 +24,9 @@ func (s *SessionServer) IsAuthorizationRequired() bool {
 }
 
 func (s *SessionServer) GetSessions(ctx context.Context, _ *v1.GetSessionsRequest) (*v1.GetSessionsResponse, error) {
-	claims := ctx.Value("claims").(*token.Token)
+	claims := ctx.Value(token2.Claims).(*token2.Token)
 
-	userSessions, err := database.GetSessionsByUserId(uuid.MustParse(claims.ID))
+	userSessions, err := database2.GetSessionsByUserId(uuid.MustParse(claims.ID))
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, status.Errorf(codes.NotFound, responses.NotFound)
@@ -52,9 +50,9 @@ func (s *SessionServer) GetSessions(ctx context.Context, _ *v1.GetSessionsReques
 }
 
 func (s *SessionServer) DeleteSession(ctx context.Context, in *v1.DeleteSessionRequest) (*v1.DefaultResponse, error) {
-	claims := ctx.Value("claims").(*jwt.RegisteredClaims)
+	claims := ctx.Value(token2.Claims).(*token2.Token)
 
-	session, err := database.GetSessionById(in.Id)
+	session, err := database2.GetSessionById(in.Id)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, status.Errorf(codes.NotFound, responses.SessionNotFound)
@@ -62,7 +60,7 @@ func (s *SessionServer) DeleteSession(ctx context.Context, in *v1.DeleteSessionR
 		return nil, status.Errorf(codes.Internal, responses.ServerError)
 	}
 	if session.SessionBelongsToUser(uuid.MustParse(claims.ID)) {
-		if err = database.DB.Delete(&session).Error; err != nil {
+		if err = database2.DB.Delete(&session).Error; err != nil {
 			return nil, status.Errorf(codes.Internal, responses.ServerError)
 		}
 
@@ -72,9 +70,9 @@ func (s *SessionServer) DeleteSession(ctx context.Context, in *v1.DeleteSessionR
 }
 
 func (s *SessionServer) SignOut(ctx context.Context, in *v1.SignOutRequest) (*v1.DefaultResponse, error) {
-	claims := ctx.Value("claims").(*jwt.RegisteredClaims)
+	claims := ctx.Value(token2.Claims).(*token2.Token)
 
-	session, err := database.GetSessionByRefreshToken(in.RefreshToken)
+	session, err := database2.GetSessionByRefreshToken(in.RefreshToken)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, status.Errorf(codes.NotFound, responses.SessionNotFound)
@@ -83,7 +81,7 @@ func (s *SessionServer) SignOut(ctx context.Context, in *v1.SignOutRequest) (*v1
 	}
 
 	if session.SessionBelongsToUser(uuid.MustParse(claims.ID)) {
-		if err = database.DB.Delete(&session).Error; err != nil {
+		if err = database2.DB.Delete(&session).Error; err != nil {
 			return nil, status.Errorf(codes.Internal, responses.ServerError)
 		}
 
