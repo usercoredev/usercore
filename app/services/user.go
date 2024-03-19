@@ -4,17 +4,18 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/cristalhq/jwt/v4"
 	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"
 	v1 "github.com/usercoredev/proto/api/v1"
+	"github.com/usercoredev/usercore/app"
 	"github.com/usercoredev/usercore/app/responses"
 	"github.com/usercoredev/usercore/app/validations"
-	"github.com/usercoredev/usercore/cache"
-	"github.com/usercoredev/usercore/database"
-	"github.com/usercoredev/usercore/utils"
-	"github.com/usercoredev/usercore/utils/server"
-	"github.com/usercoredev/usercore/utils/token"
+	"github.com/usercoredev/usercore/internal/cache"
+	database2 "github.com/usercoredev/usercore/internal/database"
+	"github.com/usercoredev/usercore/internal/dateutil"
+	"github.com/usercoredev/usercore/internal/pagination"
+	"github.com/usercoredev/usercore/internal/textutil"
+	token2 "github.com/usercoredev/usercore/internal/token"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -24,7 +25,7 @@ import (
 )
 
 type UserServer struct {
-	server.AuthorizationRequired
+	token2.AuthorizationRequired
 	v1.UnimplementedUserServiceServer
 }
 
@@ -41,14 +42,14 @@ func (s *UserServer) IsAuthorizationRequired() bool {
 }
 
 func (s *UserServer) VerifyToken(ctx context.Context, in *v1.VerifyTokenRequest) (*v1.AuthenticationResponse, error) {
-	claims := ctx.Value("claims").(*token.Token)
+	claims := ctx.Value(token2.Claims).(*token2.Token)
 	refreshToken := in.RefreshToken
 
 	if refreshToken == "" {
 		return nil, status.Errorf(codes.PermissionDenied, responses.InvalidToken)
 	}
 
-	session, err := database.GetSessionByRefreshToken(refreshToken)
+	session, err := database2.GetSessionByRefreshToken(refreshToken)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, status.Errorf(codes.PermissionDenied, responses.InvalidToken)
@@ -76,8 +77,8 @@ func (s *UserServer) VerifyToken(ctx context.Context, in *v1.VerifyTokenRequest)
 }
 
 func (s *UserServer) GetUser(ctx context.Context, _ *v1.GetUserRequest) (*v1.GetUserResponse, error) {
-	claims := ctx.Value("claims").(*token.Token)
-	var cachedUser database.User
+	claims := ctx.Value(token2.Claims).(*token2.Token)
+	var cachedUser database2.User
 	cacheErr := cache.Get(userCacheKey(claims.ID), &cachedUser)
 	if cacheErr != nil {
 		if !errors.Is(cacheErr, redis.Nil) && !errors.Is(cacheErr, cache.NotEnabled) {
@@ -88,7 +89,7 @@ func (s *UserServer) GetUser(ctx context.Context, _ *v1.GetUserRequest) (*v1.Get
 		return userToGetUserResponse(&cachedUser), nil
 	}
 
-	user, err := database.GetUserByID(uuid.MustParse(claims.ID), false)
+	user, err := database2.GetUserByID(uuid.MustParse(claims.ID), false)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, status.Errorf(codes.NotFound, responses.NotFound)
@@ -103,7 +104,7 @@ func (s *UserServer) GetUser(ctx context.Context, _ *v1.GetUserRequest) (*v1.Get
 	return userToGetUserResponse(user), nil
 }
 
-func userToGetUserResponse(user *database.User) *v1.GetUserResponse {
+func userToGetUserResponse(user *database2.User) *v1.GetUserResponse {
 	return &v1.GetUserResponse{
 		User: &v1.User{
 			Id:        user.ID.String(),
@@ -116,9 +117,9 @@ func userToGetUserResponse(user *database.User) *v1.GetUserResponse {
 }
 
 func (s *UserServer) GetUserProfile(ctx context.Context, _ *v1.GetUserProfileRequest) (*v1.GetUserProfileResponse, error) {
-	claims := ctx.Value("claims").(*token.Token)
+	claims := ctx.Value(token2.Claims).(*token2.Token)
 
-	var cachedProfile database.Profile
+	var cachedProfile database2.Profile
 	cacheErr := cache.Get(userProfileCacheKey(claims.ID), &cachedProfile)
 	if cacheErr != nil {
 		if !errors.Is(cacheErr, redis.Nil) {
@@ -129,7 +130,7 @@ func (s *UserServer) GetUserProfile(ctx context.Context, _ *v1.GetUserProfileReq
 		return profileToGetUserProfileResponse(&cachedProfile), nil
 	}
 
-	user, err := database.GetUserProfile(uuid.MustParse(claims.ID))
+	user, err := database2.GetUserProfile(uuid.MustParse(claims.ID))
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, status.Errorf(codes.NotFound, responses.NotFound)
@@ -148,7 +149,7 @@ func (s *UserServer) GetUserProfile(ctx context.Context, _ *v1.GetUserProfileReq
 	return profileToGetUserProfileResponse(user.Profile), nil
 }
 
-func profileToGetUserProfileResponse(profile *database.Profile) *v1.GetUserProfileResponse {
+func profileToGetUserProfileResponse(profile *database2.Profile) *v1.GetUserProfileResponse {
 	var birthdate string
 
 	if profile.Birthdate != nil {
@@ -169,9 +170,9 @@ func profileToGetUserProfileResponse(profile *database.Profile) *v1.GetUserProfi
 
 // UpdateUser TODO: Refactor this function
 func (s *UserServer) UpdateUser(ctx context.Context, in *v1.UpdateUserRequest) (*v1.DefaultResponse, error) {
-	claims := ctx.Value("claims").(*token.Token)
+	claims := ctx.Value(token2.Claims).(*token2.Token)
 
-	user, err := database.GetUserByID(uuid.MustParse(claims.ID), true)
+	user, err := database2.GetUserByID(uuid.MustParse(claims.ID), true)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, status.Errorf(codes.NotFound, responses.NotFound)
@@ -188,7 +189,7 @@ func (s *UserServer) UpdateUser(ctx context.Context, in *v1.UpdateUserRequest) (
 			}
 		}
 		if user.Profile == nil {
-			user.Profile = &database.Profile{
+			user.Profile = &database2.Profile{
 				Picture:   *in.Profile.Picture,
 				Birthdate: &birthdate,
 				Education: *in.Profile.Education,
@@ -222,7 +223,7 @@ func (s *UserServer) UpdateUser(ctx context.Context, in *v1.UpdateUserRequest) (
 		user.Name = *in.Name
 	}
 
-	if err := database.DB.Session(&gorm.Session{FullSaveAssociations: true}).Save(&user).Error; err != nil {
+	if err := database2.DB.Session(&gorm.Session{FullSaveAssociations: true}).Save(&user).Error; err != nil {
 		return nil, status.Errorf(codes.Internal, responses.ServerError)
 	}
 
@@ -240,12 +241,13 @@ func (s *UserServer) UpdateUser(ctx context.Context, in *v1.UpdateUserRequest) (
 	}, nil
 }
 
+// DeleteUser TODO: Implement this function
 func (s *UserServer) DeleteUser(ctx context.Context, _ *v1.DeleteUserRequest) (*v1.DefaultResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, responses.NotImplemented)
 }
 
 func (s *UserServer) ChangeEmail(ctx context.Context, in *v1.ChangeEmailRequest) (*v1.DefaultResponse, error) {
-	claims := ctx.Value("claims").(*token.Token)
+	claims := ctx.Value(token2.Claims).(*token2.Token)
 
 	changeEmailRequest := &validations.ChangeEmailRequest{
 		Email:    in.Email,
@@ -256,7 +258,7 @@ func (s *UserServer) ChangeEmail(ctx context.Context, in *v1.ChangeEmailRequest)
 		return nil, status.Errorf(codes.InvalidArgument, responses.ValidationError)
 	}
 
-	user, err := database.GetUserByID(uuid.MustParse(claims.ID), false)
+	user, err := database2.GetUserByID(uuid.MustParse(claims.ID), false)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, status.Errorf(codes.NotFound, responses.NotFound)
@@ -273,8 +275,8 @@ func (s *UserServer) ChangeEmail(ctx context.Context, in *v1.ChangeEmailRequest)
 	}
 
 	user.UpdateUserEmail(changeEmailRequest.Email)
-	if err = database.DB.Session(&gorm.Session{FullSaveAssociations: true}).Save(&user).Error; err != nil {
-		if utils.SQLDuplicateError(err) {
+	if err = database2.DB.Session(&gorm.Session{FullSaveAssociations: true}).Save(&user).Error; err != nil {
+		if app.SQLDuplicateError(err) {
 			return nil, status.Errorf(codes.AlreadyExists, responses.UserExists)
 		}
 		return nil, status.Errorf(codes.Internal, responses.ServerError)
@@ -290,7 +292,7 @@ func (s *UserServer) ChangeEmail(ctx context.Context, in *v1.ChangeEmailRequest)
 }
 
 func (s *UserServer) ChangePassword(ctx context.Context, in *v1.ChangePasswordRequest) (*v1.DefaultResponse, error) {
-	claims := ctx.Value("claims").(*jwt.RegisteredClaims)
+	claims := ctx.Value(token2.Claims).(*token2.Token)
 
 	changePasswordRequest := &validations.ChangePasswordRequest{
 		CurrentPassword: in.OldPassword,
@@ -302,7 +304,7 @@ func (s *UserServer) ChangePassword(ctx context.Context, in *v1.ChangePasswordRe
 		return nil, status.Errorf(codes.InvalidArgument, responses.ValidationError)
 	}
 
-	user, err := database.GetUserByID(uuid.MustParse(claims.ID), false)
+	user, err := database2.GetUserByID(uuid.MustParse(claims.ID), false)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, status.Errorf(codes.NotFound, responses.NotFound)
@@ -319,7 +321,7 @@ func (s *UserServer) ChangePassword(ctx context.Context, in *v1.ChangePasswordRe
 		return nil, status.Errorf(codes.Internal, responses.ServerError)
 	}
 
-	if err = database.DB.Session(&gorm.Session{FullSaveAssociations: true}).Save(&user).Error; err != nil {
+	if err = database2.DB.Session(&gorm.Session{FullSaveAssociations: true}).Save(&user).Error; err != nil {
 		return nil, status.Errorf(codes.Internal, responses.ServerError)
 	}
 
@@ -329,9 +331,9 @@ func (s *UserServer) ChangePassword(ctx context.Context, in *v1.ChangePasswordRe
 }
 
 func (s *UserServer) SendVerificationCode(ctx context.Context, in *v1.SendVerificationCodeRequest) (*v1.DefaultResponse, error) {
-	claims := ctx.Value("claims").(*jwt.RegisteredClaims)
+	claims := ctx.Value(token2.Claims).(*token2.Token)
 
-	user, err := database.GetUserByID(uuid.MustParse(claims.ID), false)
+	user, err := database2.GetUserByID(uuid.MustParse(claims.ID), false)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, status.Errorf(codes.NotFound, responses.NotFound)
@@ -344,10 +346,10 @@ func (s *UserServer) SendVerificationCode(ctx context.Context, in *v1.SendVerifi
 			return nil, status.Errorf(codes.InvalidArgument, responses.AlreadyVerified)
 		}
 
-		if !utils.CompareTimesByGivenMinute(utils.GetCurrentTime(), user.EmailVerifySentAt, 3) {
+		if !dateutil.CompareTimesByGivenMinute(dateutil.GetCurrentTime(), user.EmailVerifySentAt, 3) {
 			return nil, status.Errorf(codes.ResourceExhausted, responses.TooManyVerifyRequest)
 		}
-		otpCode := utils.GenerateOTPCode()
+		otpCode := textutil.GenerateOTPCode()
 		if otpCode == "" {
 			return nil, status.Errorf(codes.Internal, responses.ServerError)
 		}
@@ -389,7 +391,7 @@ func (s *UserServer) SendVerificationCode(ctx context.Context, in *v1.SendVerifi
 }
 
 func (s *UserServer) Verify(ctx context.Context, in *v1.VerifyRequest) (*v1.DefaultResponse, error) {
-	claims := ctx.Value("claims").(*jwt.RegisteredClaims)
+	claims := ctx.Value(token2.Claims).(*token2.Token)
 
 	verifyRequest := &validations.VerifyRequest{
 		Code: in.Code,
@@ -400,7 +402,7 @@ func (s *UserServer) Verify(ctx context.Context, in *v1.VerifyRequest) (*v1.Defa
 		return nil, status.Errorf(codes.InvalidArgument, responses.ValidationError)
 	}
 
-	user, err := database.GetUserByID(uuid.MustParse(claims.ID), false)
+	user, err := database2.GetUserByID(uuid.MustParse(claims.ID), false)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, status.Errorf(codes.NotFound, responses.NotFound)
@@ -414,7 +416,7 @@ func (s *UserServer) Verify(ctx context.Context, in *v1.VerifyRequest) (*v1.Defa
 
 	if in.Type == v1.VerificationType_EMAIL {
 		if user.VerifyEmail(in.Code) {
-			if err = database.DB.Session(&gorm.Session{FullSaveAssociations: true}).Save(&user).Error; err != nil {
+			if err = database2.DB.Session(&gorm.Session{FullSaveAssociations: true}).Save(&user).Error; err != nil {
 				return nil, status.Errorf(codes.Internal, responses.ServerError)
 			}
 			if err = cache.Set(userCacheKey(claims.ID), user, cache.Client.UserCacheExpiration); err != nil {
@@ -433,7 +435,7 @@ func (s *UserServer) Verify(ctx context.Context, in *v1.VerifyRequest) (*v1.Defa
 func (s *UserServer) GetUsers(ctx context.Context, in *v1.ListRequest) (*v1.GetUsersResponse, error) {
 	// TODO: Implement role system
 
-	md := utils.PageMetadata{
+	md := pagination.Metadata{
 		OrderBy:  in.OrderBy,
 		Order:    in.Order,
 		PageSize: in.PageSize,
@@ -441,7 +443,7 @@ func (s *UserServer) GetUsers(ctx context.Context, in *v1.ListRequest) (*v1.GetU
 		Page:     in.Page,
 	}
 
-	userToSessionsResponse := func(sessions []database.Session) []*v1.Session {
+	userToSessionsResponse := func(sessions []database2.Session) []*v1.Session {
 		var sessionsResponse []*v1.Session
 		for _, session := range sessions {
 			sessionsResponse = append(sessionsResponse, &v1.Session{
@@ -454,7 +456,7 @@ func (s *UserServer) GetUsers(ctx context.Context, in *v1.ListRequest) (*v1.GetU
 		return sessionsResponse
 	}
 
-	userToProfileResponse := func(profile *database.Profile) *v1.Profile {
+	userToProfileResponse := func(profile *database2.Profile) *v1.Profile {
 		if profile == nil {
 			return nil
 		}
@@ -473,7 +475,7 @@ func (s *UserServer) GetUsers(ctx context.Context, in *v1.ListRequest) (*v1.GetU
 		}
 	}
 
-	transformResponse := func(users []*database.User) []*v1.User {
+	transformResponse := func(users []*database2.User) []*v1.User {
 		var usersResponse []*v1.User
 		for _, user := range users {
 			userProfile := userToProfileResponse(user.Profile)
@@ -491,7 +493,7 @@ func (s *UserServer) GetUsers(ctx context.Context, in *v1.ListRequest) (*v1.GetU
 		return usersResponse
 	}
 
-	users, count, err := database.GetUsers(md)
+	users, count, err := database2.GetUsers(md)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, status.Errorf(codes.NotFound, responses.NotFound)

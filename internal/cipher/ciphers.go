@@ -5,6 +5,7 @@ import (
 	"crypto/cipher"
 	"crypto/rand"
 	"crypto/rsa"
+	"crypto/sha256"
 	"crypto/x509"
 	"encoding/base64"
 	"encoding/pem"
@@ -55,7 +56,8 @@ func PublicKey(publicKeyPath string) (key *rsa.PublicKey) {
 }
 
 func EncryptWithKey(value []byte, key string) (string, error) {
-	block, err := aes.NewCipher([]byte(key))
+	hash := sha256.Sum256([]byte(key))
+	block, err := aes.NewCipher(hash[:])
 	if err != nil {
 		return "", err
 	}
@@ -74,12 +76,13 @@ func EncryptWithKey(value []byte, key string) (string, error) {
 }
 
 func DecryptWithKey(cipherText string, key string) ([]byte, error) {
+	hash := sha256.Sum256([]byte(key))
 	data, err := base64.StdEncoding.DecodeString(cipherText)
 	if err != nil {
 		return nil, err
 	}
 
-	block, err := aes.NewCipher([]byte(key))
+	block, err := aes.NewCipher(hash[:])
 	if err != nil {
 		return nil, err
 	}

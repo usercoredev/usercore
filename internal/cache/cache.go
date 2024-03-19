@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/redis/go-redis/v9"
-	"github.com/usercoredev/usercore/utils/cipher"
+	"github.com/usercoredev/usercore/internal/cipher"
 	"net/url"
 	"os"
 	"strings"

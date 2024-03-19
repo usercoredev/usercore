@@ -8,10 +8,11 @@ import (
 	v1 "github.com/usercoredev/proto/api/v1"
 	"github.com/usercoredev/usercore/app/responses"
 	"github.com/usercoredev/usercore/app/validations"
-	"github.com/usercoredev/usercore/database"
-	"github.com/usercoredev/usercore/utils"
-	"github.com/usercoredev/usercore/utils/client"
-	"github.com/usercoredev/usercore/utils/server"
+	"github.com/usercoredev/usercore/internal/client"
+	database2 "github.com/usercoredev/usercore/internal/database"
+	"github.com/usercoredev/usercore/internal/dateutil"
+	"github.com/usercoredev/usercore/internal/textutil"
+	"github.com/usercoredev/usercore/internal/token"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"gorm.io/gorm"
@@ -19,7 +20,7 @@ import (
 )
 
 type AuthenticationServer struct {
-	server.AuthorizationRequired
+	token.AuthorizationRequired
 	v1.UnimplementedAuthenticationServiceServer
 }
 
@@ -38,7 +39,7 @@ func (s *AuthenticationServer) SignUp(ctx context.Context, in *v1.SignUpRequest)
 		return nil, status.Errorf(codes.InvalidArgument, responses.ValidationError)
 	}
 
-	user, err := database.GetUserByEmail(signUpRequest.Email)
+	user, err := database2.GetUserByEmail(signUpRequest.Email)
 	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, status.Errorf(codes.Internal, responses.ServerError)
 	}
@@ -47,7 +48,7 @@ func (s *AuthenticationServer) SignUp(ctx context.Context, in *v1.SignUpRequest)
 		return nil, status.Errorf(codes.AlreadyExists, responses.UserExists)
 	}
 
-	var newUser = database.User{
+	var newUser = database2.User{
 		Name:  signUpRequest.Name,
 		Email: signUpRequest.Email,
 	}
@@ -57,7 +58,7 @@ func (s *AuthenticationServer) SignUp(ctx context.Context, in *v1.SignUpRequest)
 	}
 	newUser.ID = uuid.New()
 
-	if err := database.DB.Model(&database.User{}).Create(&newUser).Error; err != nil {
+	if err := database2.DB.Model(&database2.User{}).Create(&newUser).Error; err != nil {
 		return nil, status.Errorf(codes.Internal, responses.ServerError)
 	}
 
@@ -82,7 +83,7 @@ func (s *AuthenticationServer) SignIn(ctx context.Context, in *v1.SignInRequest)
 		return nil, status.Errorf(codes.InvalidArgument, responses.ValidationError)
 	}
 
-	user, err := database.GetUserByEmail(signInRequest.Email)
+	user, err := database2.GetUserByEmail(signInRequest.Email)
 	if err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, responses.InvalidCredentials)
 	}
@@ -114,7 +115,7 @@ func (s *AuthenticationServer) RefreshToken(ctx context.Context, in *v1.RefreshT
 		return nil, status.Errorf(codes.InvalidArgument, responses.ValidationError)
 	}
 
-	session, err := database.GetSessionByRefreshToken(refreshTokenRequest.RefreshToken)
+	session, err := database2.GetSessionByRefreshToken(refreshTokenRequest.RefreshToken)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, status.Errorf(codes.NotFound, responses.SessionNotFound)
@@ -151,7 +152,7 @@ func (s *AuthenticationServer) ResetPassword(_ context.Context, in *v1.ResetPass
 		return nil, status.Errorf(codes.InvalidArgument, responses.ValidationError)
 	}
 
-	otpCode := utils.GenerateOTPCode()
+	otpCode := textutil.GenerateOTPCode()
 	if otpCode == "" {
 		return nil, status.Errorf(codes.Internal, responses.ServerError)
 	}
@@ -159,7 +160,7 @@ func (s *AuthenticationServer) ResetPassword(_ context.Context, in *v1.ResetPass
 	// TODO: Remove this line
 	fmt.Println(otpCode)
 
-	user, err := database.GetUserByEmail(resetPasswordRequest.Email)
+	user, err := database2.GetUserByEmail(resetPasswordRequest.Email)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, status.Errorf(codes.Aborted, responses.InvalidCredentials)
@@ -169,11 +170,11 @@ func (s *AuthenticationServer) ResetPassword(_ context.Context, in *v1.ResetPass
 
 	lastReset, err := user.GetLastPasswordReset()
 	if err != nil {
-		lastReset = &database.PasswordReset{
+		lastReset = &database2.PasswordReset{
 			UserID: user.ID,
 		}
 	}
-	if !utils.CompareTimesByGivenMinute(utils.GetCurrentTime(), &lastReset.CreatedAt, 15) {
+	if !dateutil.CompareTimesByGivenMinute(dateutil.GetCurrentTime(), &lastReset.CreatedAt, 15) {
 		return nil, status.Errorf(codes.ResourceExhausted, responses.TooManyResetRequest)
 	}
 
@@ -220,7 +221,7 @@ func (s *AuthenticationServer) ResetPasswordConfirm(_ context.Context, in *v1.Re
 		return nil, status.Errorf(codes.InvalidArgument, responses.ValidationError)
 	}
 
-	user, err := database.GetUserByEmail(resetPasswordConfirmRequest.Email)
+	user, err := database2.GetUserByEmail(resetPasswordConfirmRequest.Email)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, status.Errorf(codes.Aborted, responses.InvalidCredentials)
@@ -233,7 +234,7 @@ func (s *AuthenticationServer) ResetPasswordConfirm(_ context.Context, in *v1.Re
 		return nil, status.Errorf(codes.Aborted, responses.InvalidCode)
 	}
 
-	if utils.CompareTimesByGivenDay(utils.GetCurrentTime(), &lastReset.CreatedAt, 1) {
+	if dateutil.CompareTimesByGivenDay(dateutil.GetCurrentTime(), &lastReset.CreatedAt, 1) {
 		return nil, status.Errorf(codes.Aborted, responses.CodeExpired)
 	}
 
@@ -244,7 +245,7 @@ func (s *AuthenticationServer) ResetPasswordConfirm(_ context.Context, in *v1.Re
 	if err := user.SetPassword(resetPasswordConfirmRequest.Password); err != nil {
 		return nil, status.Errorf(codes.Internal, responses.ServerError)
 	}
-	if err = database.DB.Session(&gorm.Session{FullSaveAssociations: true}).Save(&user).Error; err != nil {
+	if err = database2.DB.Session(&gorm.Session{FullSaveAssociations: true}).Save(&user).Error; err != nil {
 		return nil, status.Errorf(codes.Internal, responses.ServerError)
 	}
 	/*

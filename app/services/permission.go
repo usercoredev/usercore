@@ -2,11 +2,11 @@ package services
 
 import (
 	v1 "github.com/usercoredev/proto/api/v1"
-	"github.com/usercoredev/usercore/utils/server"
+	"github.com/usercoredev/usercore/internal/token"
 )
 
 type PermissionServer struct {
-	server.AuthorizationRequired
+	token.AuthorizationRequired
 	v1.UnimplementedPermissionServiceServer
 }
 

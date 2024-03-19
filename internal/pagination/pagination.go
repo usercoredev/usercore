@@ -1,6 +1,6 @@
-package utils
+package pagination
 
-type PageMetadata struct {
+type Metadata struct {
 	TotalCount int32 `json:"total_count"`
 	TotalPages int32 `json:"total_pages"`
 	PageSize   int32 `json:"page_size"`
@@ -12,7 +12,7 @@ type PageMetadata struct {
 	Search     string
 }
 
-func (p *PageMetadata) SetTotalCount(count int32) {
+func (p *Metadata) SetTotalCount(count int32) {
 	if count < 0 {
 		count = 0
 	}
@@ -25,10 +25,10 @@ func (p *PageMetadata) SetTotalCount(count int32) {
 			p.TotalPages++
 		}
 	}
-	p.updatePageNavigation()
+	p.updateNavigation()
 }
 
-func (p *PageMetadata) SetPage(page int32) {
+func (p *Metadata) SetPage(page int32) {
 	if page <= 0 || p.TotalPages == 0 {
 		p.Page = 1
 	} else if page > p.TotalPages {
@@ -36,15 +36,15 @@ func (p *PageMetadata) SetPage(page int32) {
 	} else {
 		p.Page = page
 	}
-	p.updatePageNavigation()
+	p.updateNavigation()
 }
 
-func (p *PageMetadata) updatePageNavigation() {
+func (p *Metadata) updateNavigation() {
 	p.HasPrev = p.Page > 1
 	p.HasNext = p.Page < p.TotalPages
 }
 
-func (p *PageMetadata) Offset() int32 {
+func (p *Metadata) Offset() int32 {
 	if p.Page <= 0 {
 		return 0
 	}

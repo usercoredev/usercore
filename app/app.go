@@ -7,12 +7,10 @@ import (
 	"github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
 	v1 "github.com/usercoredev/proto/api/v1"
 	"github.com/usercoredev/usercore/app/services"
-	"github.com/usercoredev/usercore/cache"
-	"github.com/usercoredev/usercore/database"
-	"github.com/usercoredev/usercore/utils"
-	"github.com/usercoredev/usercore/utils/client"
-	"github.com/usercoredev/usercore/utils/server"
-	"github.com/usercoredev/usercore/utils/token"
+	"github.com/usercoredev/usercore/internal/cache"
+	client2 "github.com/usercoredev/usercore/internal/client"
+	"github.com/usercoredev/usercore/internal/database"
+	token2 "github.com/usercoredev/usercore/internal/token"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/metadata"
@@ -24,10 +22,10 @@ import (
 )
 
 type Application struct {
-	clientSettings  client.Settings
+	clientSettings  client2.Settings
 	grpcServer      Server
 	httpServer      Server
-	tokenSettings   token.Settings
+	tokenSettings   token2.Settings
 	databaseOptions database.Database
 	cacheOptions    cache.Settings
 }
@@ -39,7 +37,7 @@ type Server struct {
 
 func Create() Application {
 	return Application{
-		tokenSettings: token.Settings{
+		tokenSettings: token2.Settings{
 			Scheme:             os.Getenv("TOKEN_SCHEME"),
 			Issuer:             os.Getenv("APP_NAME"),
 			Audience:           os.Getenv("JWT_AUDIENCE"),
@@ -81,7 +79,7 @@ func Create() Application {
 			UserProfileCacheExpiration: os.Getenv("USER_PROFILE_CACHE_EXPIRATION"),
 			UserProfileCachePrefix:     os.Getenv("USER_PROFILE_CACHE_PREFIX"),
 		},
-		clientSettings: client.Settings{
+		clientSettings: client2.Settings{
 			ClientFilePath: os.Getenv("CLIENTS_FILE_PATH"),
 		},
 	}
@@ -95,17 +93,17 @@ func (a *Application) ConnectToDatabase() {
 
 func (a *Application) ConfigureToken() {
 	if a.tokenSettings.PrivateKeyPath == "" {
-		panic(utils.ErrPrivateKeyPathNotSet)
+		panic(ErrPrivateKeyPathNotSet)
 	}
 	if a.tokenSettings.PublicKeyPath == "" {
-		panic(utils.ErrPublicKeyPathNotSet)
+		panic(ErrPublicKeyPathNotSet)
 	}
 	a.tokenSettings.Setup()
 }
 
 func (a *Application) LoadClients() {
 	if a.clientSettings.ClientFilePath == "" {
-		panic(utils.ErrClientFilePathNotSet)
+		panic(ErrClientFilePathNotSet)
 	}
 	if err := a.clientSettings.LoadClients(); err != nil {
 		panic(err)
@@ -120,7 +118,7 @@ func (a *Application) SetupCache() {
 
 func (a *Application) StartServer() {
 	if a.grpcServer.Port == "" {
-		panic(utils.ErrGRPCPortNotSet)
+		panic(ErrGRPCPortNotSet)
 	}
 	address := fmt.Sprintf("%s:%s", a.grpcServer.Host, a.grpcServer.Port)
 	lis, err := net.Listen("tcp", address)
@@ -137,8 +135,8 @@ func (a *Application) StartServer() {
 func (a *Application) startGRPCServer(lis net.Listener) {
 	s := grpc.NewServer(
 		grpc.ChainUnaryInterceptor(
-			server.ClientInterceptor(a.clientSettings.Clients),
-			server.AuthInterceptor,
+			client2.ClientInterceptor(a.clientSettings),
+			token2.AuthInterceptor(a.tokenSettings),
 		),
 		grpc.ChainStreamInterceptor(),
 	)
@@ -146,7 +144,7 @@ func (a *Application) startGRPCServer(lis net.Listener) {
 	go func() {
 		fmt.Println("GRPC Server running on: ", lis.Addr())
 		if err := s.Serve(lis); err != nil {
-			panic(errors.New(fmt.Sprintf("Code: %d, %s: %v", utils.ErrGRPCFailedToServe.Code, utils.ErrGRPCFailedToServe.Message, err)))
+			panic(errors.New(fmt.Sprintf("Code: %d, %s: %v", ErrGRPCFailedToServe.Code, ErrGRPCFailedToServe.Message, err)))
 		}
 	}()
 }
@@ -174,7 +172,7 @@ func (a *Application) startHTTPServer() error {
 	}
 	gwMux := runtime.NewServeMux(
 		runtime.WithMetadata(func(_ context.Context, req *http.Request) metadata.MD {
-			return metadata.Pairs("client_id", req.Header.Get("Client_id"))
+			return metadata.Pairs(string(client2.Key), req.Header.Get(string(client2.Key)))
 		}),
 	)
 	a.registerHTTPServices(ctx, gwMux, conn)

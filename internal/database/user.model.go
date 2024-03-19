@@ -5,9 +5,11 @@ import (
 	"errors"
 	"fmt"
 	"github.com/google/uuid"
-	"github.com/usercoredev/usercore/utils"
-	"github.com/usercoredev/usercore/utils/client"
-	"github.com/usercoredev/usercore/utils/token"
+	"github.com/usercoredev/usercore/internal/client"
+	"github.com/usercoredev/usercore/internal/dateutil"
+	"github.com/usercoredev/usercore/internal/pagination"
+	"github.com/usercoredev/usercore/internal/token"
+	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 	"os"
@@ -40,16 +42,17 @@ func (u *User) BeforeCreate(tx *gorm.DB) (err error) {
 
 // ComparePassword compares the password of a user
 func (u *User) ComparePassword(password string) bool {
-	return utils.CheckPasswordHash(password, u.Password)
+	err := bcrypt.CompareHashAndPassword([]byte(u.Password), []byte(password))
+	return err == nil
 }
 
 // SetPassword sets the password of a user
 func (u *User) SetPassword(password string) error {
-	hashedPassword, err := utils.GeneratePasswordHash(password)
+	hash, err := bcrypt.GenerateFromPassword([]byte(password), 14)
 	if err != nil {
 		return err
 	}
-	u.Password = hashedPassword
+	u.Password = string(hash)
 	return nil
 }
 
@@ -75,7 +78,7 @@ func (u *User) CheckPasswordResetToken(token string) bool {
 // SetEmailVerifyCode verifies the email of a user
 func (u *User) SetEmailVerifyCode(code string) {
 	u.EmailVerifyCode = code
-	currentTime := utils.GetCurrentTime()
+	currentTime := dateutil.GetCurrentTime()
 	u.EmailVerifySentAt = &currentTime
 }
 
@@ -180,7 +183,7 @@ func (u *User) CreateSession(ctx context.Context) (*token.DefaultToken, error) {
 	}, nil
 }
 
-func GetUsers(md utils.PageMetadata) ([]*User, int64, error) {
+func GetUsers(md pagination.Metadata) ([]*User, int64, error) {
 	var count int64
 	var users []*User
 	likeOperator := getLikeOperator(DB)
