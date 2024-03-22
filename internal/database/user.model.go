@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"github.com/google/uuid"
 	"github.com/usercoredev/usercore/internal/client"
-	"github.com/usercoredev/usercore/internal/dateutil"
 	"github.com/usercoredev/usercore/internal/pagination"
 	"github.com/usercoredev/usercore/internal/token"
 	"golang.org/x/crypto/bcrypt"
@@ -78,7 +77,7 @@ func (u *User) CheckPasswordResetToken(token string) bool {
 // SetEmailVerifyCode verifies the email of a user
 func (u *User) SetEmailVerifyCode(code string) {
 	u.EmailVerifyCode = code
-	currentTime := dateutil.GetCurrentTime()
+	currentTime := time.Now()
 	u.EmailVerifySentAt = &currentTime
 }
 

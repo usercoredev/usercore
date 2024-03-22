@@ -2,6 +2,7 @@ package validations
 
 import (
 	"github.com/go-playground/validator/v10"
+	"github.com/talut/dotenv"
 	"regexp"
 	"strings"
 )
@@ -14,8 +15,8 @@ type ErrorResponse struct {
 
 var validate = validator.New()
 
-func ValidateStruct(validatorStruct interface{}) []*ErrorResponse {
-	var errors []*ErrorResponse
+func ValidateStruct(validatorStruct interface{}) []ErrorResponse {
+	var errors []ErrorResponse
 	_ = validate.RegisterValidation("password", passwordValidator)
 	err := validate.Struct(validatorStruct)
 	if err != nil {
@@ -24,7 +25,7 @@ func ValidateStruct(validatorStruct interface{}) []*ErrorResponse {
 			element.Field = strings.ToLower(err.Field())
 			element.Reason = err.Tag()
 			element.Expected = err.Param()
-			errors = append(errors, &element)
+			errors = append(errors, element)
 		}
 	}
 	return errors
@@ -38,8 +39,10 @@ func passwordValidator(fl validator.FieldLevel) bool {
 		number    = regexp.MustCompile(`\d`)
 		special   = regexp.MustCompile(`[^a-zA-Z\d]`)
 	)
-	return len(password) >= 8 &&
-		len(password) <= 64 &&
+	passwordMinLength := dotenv.GetInt("PASSWORD_MIN_LENGTH", 8)
+	passwordMaxLength := dotenv.GetInt("PASSWORD_MAX_LENGTH", 64)
+	return len(password) >= passwordMinLength &&
+		len(password) <= passwordMaxLength &&
 		uppercase.MatchString(password) &&
 		lowercase.MatchString(password) &&
 		number.MatchString(password) &&

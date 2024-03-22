@@ -107,8 +107,3 @@ func TestCompareTimesByGivenMonth(t *testing.T) {
 	// Test where storedTime is nil
 	assert.True(t, CompareTimesByGivenMonth(now, nil, 1))
 }
-
-func TestGetCurrentTime(t *testing.T) {
-	now := time.Now()
-	assert.True(t, GetCurrentTime().Sub(now).Seconds() < 1)
-}

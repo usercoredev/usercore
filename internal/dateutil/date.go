@@ -1,7 +1,7 @@
 package dateutil
 
 import (
-	"os"
+	"github.com/talut/dotenv"
 	"time"
 )
 
@@ -10,13 +10,7 @@ var defaultDateTimeFormat = "2006-01-02 15:04:05"
 
 // FormatDate converts string to time.Time using the format from environment variable DATE_FORMAT
 func FormatDate(date string) *time.Time {
-	if os.Getenv("DATE_FORMAT") == "" {
-		err := os.Setenv("DATE_FORMAT", defaultDateFormat)
-		if err != nil {
-			return nil
-		}
-	}
-	t, err := time.Parse(os.Getenv("DATE_FORMAT"), date)
+	t, err := time.Parse(dotenv.GetString("DATE_FORMAT", defaultDateFormat), date)
 	if err != nil {
 		return nil
 	}
@@ -25,24 +19,14 @@ func FormatDate(date string) *time.Time {
 
 // FormatTime converts string to time.Time using the format from environment variable DATETIME_FORMAT
 func FormatTime(e string) *time.Time {
-	if os.Getenv("DATETIME_FORMAT") == "" {
-		err := os.Setenv("DATETIME_FORMAT", defaultDateTimeFormat)
-		if err != nil {
-			return nil
-		}
-	}
 	if len(e) == 0 {
 		return nil
 	}
-	t, err := time.Parse(os.Getenv("DATETIME_FORMAT"), e)
+	t, err := time.Parse(dotenv.GetString("DATE_TIME_FORMAT", defaultDateTimeFormat), e)
 	if err != nil {
 		return nil
 	}
 	return &t
-}
-
-func GetCurrentTime() time.Time {
-	return time.Now()
 }
 
 // CompareTimesByGivenMinute compares two times by given minute & returns true if t1 is greater than storedTime by given minute

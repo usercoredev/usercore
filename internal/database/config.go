@@ -123,7 +123,7 @@ func (d *Database) connectMySQL() (*gorm.DB, error) {
 	}
 
 	dbDSN := fmt.Sprintf("%s?parseTime=true&charset=%s&tls=%s", dbAccess, d.Charset, tlsEnabled)
-	db, dbError := gorm.Open(gMysql.Open(dbDSN), &gorm.Config{})
+	db, dbError := gorm.Open(gMysql.Open(dbDSN), &gorm.Config{TranslateError: true})
 	if dbError != nil {
 		return nil, fmt.Errorf("failed to connect to database: %v", dbError)
 	}
@@ -143,7 +143,7 @@ func (d *Database) connectPostgres() (*gorm.DB, error) {
 		}
 		dbAccess += fmt.Sprintf(" sslmode=require sslrootcert=%s", d.Certificate)
 	}
-	db, err := gorm.Open(postgres.Open(dbAccess), &gorm.Config{})
+	db, err := gorm.Open(postgres.Open(dbAccess), &gorm.Config{TranslateError: true})
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to database: %v", err)
 	}

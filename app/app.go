@@ -5,12 +5,14 @@ import (
 	"errors"
 	"fmt"
 	"github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
+	"github.com/talut/dotenv"
 	v1 "github.com/usercoredev/proto/api/v1"
 	"github.com/usercoredev/usercore/app/services"
 	"github.com/usercoredev/usercore/internal/cache"
-	client2 "github.com/usercoredev/usercore/internal/client"
+	"github.com/usercoredev/usercore/internal/client"
 	"github.com/usercoredev/usercore/internal/database"
-	token2 "github.com/usercoredev/usercore/internal/token"
+	"github.com/usercoredev/usercore/internal/errorutil"
+	"github.com/usercoredev/usercore/internal/token"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/metadata"
@@ -18,14 +20,14 @@ import (
 	"log"
 	"net"
 	"net/http"
-	"os"
+	"time"
 )
 
 type Application struct {
-	clientSettings  client2.Settings
+	clientSettings  client.Settings
 	grpcServer      Server
 	httpServer      Server
-	tokenSettings   token2.Settings
+	tokenSettings   token.Settings
 	databaseOptions database.Database
 	cacheOptions    cache.Settings
 }
@@ -37,50 +39,50 @@ type Server struct {
 
 func Create() Application {
 	return Application{
-		tokenSettings: token2.Settings{
-			Scheme:             os.Getenv("TOKEN_SCHEME"),
-			Issuer:             os.Getenv("APP_NAME"),
-			Audience:           os.Getenv("JWT_AUDIENCE"),
-			PrivateKeyPath:     os.Getenv("PRIVATE_KEY_PATH"),
-			PublicKeyPath:      os.Getenv("PUBLIC_KEY_PATH"),
-			AccessTokenExpire:  os.Getenv("ACCESS_TOKEN_EXPIRE"),
-			RefreshTokenExpire: os.Getenv("REFRESH_TOKEN_EXPIRE"),
+		tokenSettings: token.Settings{
+			Scheme:             dotenv.GetString("TOKEN_SCHEME", "Bearer"),
+			Issuer:             dotenv.MustGetString("APP_NAME"),
+			Audience:           dotenv.MustGetString("JWT_AUDIENCE"),
+			PrivateKeyPath:     dotenv.MustGetString("PRIVATE_KEY_PATH"),
+			PublicKeyPath:      dotenv.MustGetString("PUBLIC_KEY_PATH"),
+			AccessTokenExpire:  dotenv.GetDuration("ACCESS_TOKEN_EXPIRE", 1*time.Hour),
+			RefreshTokenExpire: dotenv.GetDuration("REFRESH_TOKEN_EXPIRE", 24*time.Hour),
 		},
 		grpcServer: Server{
-			Host: os.Getenv("GRPC_SERVER_HOST"),
-			Port: os.Getenv("GRPC_SERVER_PORT"),
+			Host: dotenv.GetString("GRPC_SERVER_HOST", ""),
+			Port: dotenv.MustGetString("GRPC_SERVER_PORT"),
 		},
 		httpServer: Server{
-			Host: os.Getenv("HTTP_SERVER_HOST"),
-			Port: os.Getenv("HTTP_SERVER_PORT"),
+			Host: dotenv.GetString("HTTP_SERVER_HOST", ""),
+			Port: dotenv.MustGetString("HTTP_SERVER_PORT"),
 		},
 		databaseOptions: database.Database{
-			Host:            os.Getenv("DB_HOST"),
-			Port:            os.Getenv("DB_PORT"),
-			User:            os.Getenv("DB_USER"),
-			Password:        os.Getenv("DB_PASSWORD"),
-			PasswordFile:    os.Getenv("DB_PASSWORD_FILE"),
-			Database:        os.Getenv("DB_NAME"),
-			DatabaseFile:    os.Getenv("DB_FILE_PATH"),
-			Engine:          os.Getenv("DB_ENGINE"),
-			Charset:         os.Getenv("DB_CHARSET"),
-			Certificate:     os.Getenv("DB_CERTIFICATE_FILE"),
-			EnableMigration: os.Getenv("DB_MIGRATE"),
+			Host:            dotenv.GetString("DB_HOST", ""),
+			Port:            dotenv.GetString("DB_PORT", ""),
+			User:            dotenv.GetString("DB_USER", ""),
+			Password:        dotenv.GetString("DB_PASSWORD", ""),
+			PasswordFile:    dotenv.GetString("DB_PASSWORD_FILE", ""),
+			Database:        dotenv.GetString("DB_NAME", ""),
+			DatabaseFile:    dotenv.GetString("DB_FILE_PATH", ""),
+			Engine:          dotenv.GetString("DB_ENGINE", ""),
+			Charset:         dotenv.GetString("DB_CHARSET", ""),
+			Certificate:     dotenv.GetString("DB_CERTIFICATE_FILE", ""),
+			EnableMigration: dotenv.GetString("DB_MIGRATE", ""),
 		},
 		cacheOptions: cache.Settings{
-			Enabled:                    os.Getenv("CACHE_ENABLED"),
-			Host:                       os.Getenv("CACHE_HOST"),
-			Port:                       os.Getenv("CACHE_PORT"),
-			Password:                   os.Getenv("CACHE_PASSWORD"),
-			PasswordFile:               os.Getenv("CACHE_PASSWORD_FILE"),
-			EncryptionKey:              os.Getenv("CACHE_ENCRYPTION_KEY"),
-			UserCacheExpiration:        os.Getenv("USER_CACHE_EXPIRATION"),
-			UserCachePrefix:            os.Getenv("USER_CACHE_PREFIX"),
-			UserProfileCacheExpiration: os.Getenv("USER_PROFILE_CACHE_EXPIRATION"),
-			UserProfileCachePrefix:     os.Getenv("USER_PROFILE_CACHE_PREFIX"),
+			Enabled:                    dotenv.GetBool("CACHE_ENABLED", false),
+			Host:                       dotenv.MustGetString("CACHE_HOST"),
+			Port:                       dotenv.MustGetString("CACHE_PORT"),
+			Password:                   dotenv.GetString("CACHE_PASSWORD", ""),
+			PasswordFile:               dotenv.GetString("CACHE_PASSWORD_FILE", ""),
+			EncryptionKey:              dotenv.GetString("CACHE_ENCRYPTION_KEY", ""),
+			UserCacheExpiration:        dotenv.GetDuration("USER_CACHE_EXPIRATION", 48*time.Hour),
+			UserProfileCacheExpiration: dotenv.GetDuration("USER_PROFILE_CACHE_EXPIRATION", 48*time.Hour),
+			UserCachePrefix:            dotenv.GetString("USER_CACHE_PREFIX", "user"),
+			UserProfileCachePrefix:     dotenv.GetString("USER_PROFILE_CACHE_PREFIX", "profile"),
 		},
-		clientSettings: client2.Settings{
-			ClientFilePath: os.Getenv("CLIENTS_FILE_PATH"),
+		clientSettings: client.Settings{
+			ClientFilePath: dotenv.MustGetString("CLIENTS_FILE_PATH"),
 		},
 	}
 }
@@ -92,19 +94,10 @@ func (a *Application) ConnectToDatabase() {
 }
 
 func (a *Application) ConfigureToken() {
-	if a.tokenSettings.PrivateKeyPath == "" {
-		panic(ErrPrivateKeyPathNotSet)
-	}
-	if a.tokenSettings.PublicKeyPath == "" {
-		panic(ErrPublicKeyPathNotSet)
-	}
 	a.tokenSettings.Setup()
 }
 
 func (a *Application) LoadClients() {
-	if a.clientSettings.ClientFilePath == "" {
-		panic(ErrClientFilePathNotSet)
-	}
 	if err := a.clientSettings.LoadClients(); err != nil {
 		panic(err)
 	}
@@ -117,9 +110,6 @@ func (a *Application) SetupCache() {
 }
 
 func (a *Application) StartServer() {
-	if a.grpcServer.Port == "" {
-		panic(ErrGRPCPortNotSet)
-	}
 	address := fmt.Sprintf("%s:%s", a.grpcServer.Host, a.grpcServer.Port)
 	lis, err := net.Listen("tcp", address)
 	if err != nil {
@@ -135,16 +125,15 @@ func (a *Application) StartServer() {
 func (a *Application) startGRPCServer(lis net.Listener) {
 	s := grpc.NewServer(
 		grpc.ChainUnaryInterceptor(
-			client2.ClientInterceptor(a.clientSettings),
-			token2.AuthInterceptor(a.tokenSettings),
+			client.ClientInterceptor(a.clientSettings),
+			a.tokenSettings.AuthInterceptor(),
 		),
-		grpc.ChainStreamInterceptor(),
 	)
 	a.registerGRPCServices(s)
 	go func() {
 		fmt.Println("GRPC Server running on: ", lis.Addr())
 		if err := s.Serve(lis); err != nil {
-			panic(errors.New(fmt.Sprintf("Code: %d, %s: %v", ErrGRPCFailedToServe.Code, ErrGRPCFailedToServe.Message, err)))
+			panic(errors.New(fmt.Sprintf("Code: %d, %s: %v", errorutil.ErrGRPCFailedToServe.Code, errorutil.ErrGRPCFailedToServe.Message, err)))
 		}
 	}()
 }
@@ -170,19 +159,19 @@ func (a *Application) startHTTPServer() error {
 	if err != nil {
 		return err
 	}
-	gwMux := runtime.NewServeMux(
+	mux := runtime.NewServeMux(
 		runtime.WithMetadata(func(_ context.Context, req *http.Request) metadata.MD {
-			return metadata.Pairs(string(client2.Key), req.Header.Get(string(client2.Key)))
+			return metadata.Pairs(string(client.Key), req.Header.Get(string(client.Key)))
 		}),
 	)
-	a.registerHTTPServices(ctx, gwMux, conn)
+	a.registerHTTPServices(ctx, mux, conn)
 	httpServerAddr := fmt.Sprintf("%s:%s", a.httpServer.Host, a.httpServer.Port)
-	gwServer := &http.Server{
+	server := &http.Server{
 		Addr:    httpServerAddr,
-		Handler: gwMux,
+		Handler: mux,
 	}
 	fmt.Println("HTTP Server running on: ", httpServerAddr)
-	if err = gwServer.ListenAndServe(); err != nil {
+	if err = server.ListenAndServe(); err != nil {
 		return err
 	}
 	return nil

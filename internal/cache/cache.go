@@ -19,14 +19,14 @@ func (e notEnabled) Error() string { return string(e) }
 const NotEnabled = notEnabled("cache_not_enabled")
 
 type Settings struct {
-	Enabled                    string
+	Enabled                    bool
 	Host                       string
 	Port                       string
 	Password                   string
 	PasswordFile               string
 	EncryptionKey              string
-	UserCacheExpiration        string
-	UserProfileCacheExpiration string
+	UserCacheExpiration        time.Duration
+	UserProfileCacheExpiration time.Duration
 	UserCachePrefix            string
 	UserProfileCachePrefix     string
 }
@@ -42,7 +42,7 @@ type redisCache struct {
 var Client *redisCache
 
 func (s *Settings) SetupCache() error {
-	if s.Enabled != "true" {
+	if !s.Enabled {
 		return nil
 	}
 	if s.Host == "" {
@@ -60,29 +60,19 @@ func (s *Settings) SetupCache() error {
 		s.Password = string(bin)
 	}
 	s.Password = url.QueryEscape(strings.TrimSpace(s.Password))
-
-	userCacheExpiration, err := time.ParseDuration(s.UserCacheExpiration)
-	if err != nil {
-		return err
-	}
-	userProfileCacheExpiration, err := time.ParseDuration(s.UserProfileCacheExpiration)
-	if err != nil {
-		return err
-	}
-
 	Client = &redisCache{
 		encryptionKey:              s.EncryptionKey,
 		UserPrefix:                 s.UserCachePrefix,
 		UserProfilePrefix:          s.UserProfileCachePrefix,
-		UserCacheExpiration:        userCacheExpiration,
-		UserProfileCacheExpiration: userProfileCacheExpiration,
+		UserCacheExpiration:        s.UserCacheExpiration,
+		UserProfileCacheExpiration: s.UserProfileCacheExpiration,
 	}
 	Client.redis = redis.NewClient(&redis.Options{
 		Addr:     fmt.Sprintf("%s:%s", s.Host, s.Port),
 		Password: s.Password,
 		DB:       0,
 	})
-	_, err = Client.redis.Ping(context.Background()).Result()
+	_, err := Client.redis.Ping(context.Background()).Result()
 	if err != nil {
 		panic(err)
 	}
