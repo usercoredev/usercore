@@ -56,6 +56,12 @@ github.com/stretchr/testify v1.3.0/go.mod h1:M5WIy9Dh21IEIfnGCwXGc5bZfKNJtfHm1UV
 github.com/stretchr/testify v1.7.0/go.mod h1:6Fq8oRcR53rry900zMqJjRRixrwX3KX962/h/Wwjteg=
 github.com/stretchr/testify v1.9.0 h1:HtqpIVDClZ4nwg75+f6Lvsy/wHu+3BoSGCbBAcpTsTg=
 github.com/stretchr/testify v1.9.0/go.mod h1:r2ic/lqez/lEtzL7wO/rwa5dbSLXVDPFyf8C91i36aY=
+github.com/talut/dotenv v0.0.0-20240321113932-a9ee9ea055d9 h1:af+slK4N7i1rJh33BDU5cWDvHBOkLueIF6w6b7fAy0E=
+github.com/talut/dotenv v0.0.0-20240321113932-a9ee9ea055d9/go.mod h1:4yttWglq359DIlu5N5BallO3HVwzpo//n6E85RgrLFA=
+github.com/talut/dotenv v1.0.0 h1:tOSjWwo8mA+fn0bH3whGFcdyVsawD18PeTjpazgpOqg=
+github.com/talut/dotenv v1.0.0/go.mod h1:4yttWglq359DIlu5N5BallO3HVwzpo//n6E85RgrLFA=
+github.com/talut/dotenv v1.0.1 h1:bWbG6sX40NW9wM3cGYDm1o5w8//xiM8HCx1p+4Mq6es=
+github.com/talut/dotenv v1.0.1/go.mod h1:4yttWglq359DIlu5N5BallO3HVwzpo//n6E85RgrLFA=
 github.com/usercoredev/proto v0.0.0-20240305200003-258ce626ca0b h1:hJXbmFGhtgnTeJk6QuKihI6qQNTtu6bfDM5Kywk0Vs4=
 github.com/usercoredev/proto v0.0.0-20240305200003-258ce626ca0b/go.mod h1:CEk8Bdatp0zlwRAGfBQKZxhhQZt2ct5X6+DUAk+WYBw=
 golang.org/x/crypto v0.21.0 h1:X31++rzVUdKhX5sWmSOFZxx8UW/ldWx55cbf08iNAMA=

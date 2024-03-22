@@ -1,9 +1,7 @@
-package app
+package errorutil
 
 import (
-	"errors"
 	"fmt"
-	"github.com/go-sql-driver/mysql"
 )
 
 type UCError struct {
@@ -46,36 +44,4 @@ var (
 
 func (e *UCError) Error() string {
 	return fmt.Sprintf("Code: %d, Message: %s", e.Code, e.Message)
-}
-
-func SQLDuplicateError(err error) bool {
-	var mysqlErr *mysql.MySQLError
-	if errors.As(err, &mysqlErr) && mysqlErr.Number == 1062 {
-		return true
-	}
-	return false
-}
-
-func SQLForeignKeyError(err error) bool {
-	var mysqlErr *mysql.MySQLError
-	if errors.As(err, &mysqlErr) && mysqlErr.Number == 1452 {
-		return true
-	}
-	return false
-}
-
-func SQLNoRowsError(err error) bool {
-	var mysqlErr *mysql.MySQLError
-	if errors.As(err, &mysqlErr) && mysqlErr.Number == 1146 {
-		return true
-	}
-	return false
-}
-
-func SQLInvalidDataError(err error) bool {
-	var mysqlErr *mysql.MySQLError
-	if errors.As(err, &mysqlErr) && mysqlErr.Number == 1366 {
-		return true
-	}
-	return false
 }

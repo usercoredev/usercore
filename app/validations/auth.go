@@ -2,13 +2,13 @@ package validations
 
 type SignUpRequest struct {
 	Name     string `validate:"required,min=3,max=64"`
-	Email    string `validate:"required,email,min=5,max=64"`
-	Password string `validate:"required,min=8,max=64,password"`
+	Email    string `validate:"required,email"`
+	Password string `validate:"required,password"`
 }
 
 type SignInRequest struct {
-	Email    string `validate:"required,email,min=5,max=64" json:"email"`
-	Password string `validate:"required,min=8,max=64,password" json:"password"`
+	Email    string `validate:"required,email" json:"email"`
+	Password string `validate:"required,password" json:"password"`
 }
 
 type StoreDeviceInfoRequest struct {

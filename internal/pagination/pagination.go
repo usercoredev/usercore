@@ -7,35 +7,16 @@ type Metadata struct {
 	Page       int32 `json:"page"`
 	HasNext    bool  `json:"has_next"`
 	HasPrev    bool  `json:"has_prev"`
-	OrderBy    string
-	Order      string
-	Search     string
 }
 
 func (p *Metadata) SetTotalCount(count int32) {
-	if count < 0 {
-		count = 0
-	}
-	p.TotalCount = count
-	if p.PageSize <= 0 {
-		p.TotalPages = 0
-	} else {
-		p.TotalPages = count / p.PageSize
-		if count%p.PageSize != 0 {
-			p.TotalPages++
-		}
-	}
+	p.TotalCount = max(count, 0)
+	p.TotalPages = max(p.TotalCount/p.PageSize+min(1, p.TotalCount%p.PageSize), 0)
 	p.updateNavigation()
 }
 
 func (p *Metadata) SetPage(page int32) {
-	if page <= 0 || p.TotalPages == 0 {
-		p.Page = 1
-	} else if page > p.TotalPages {
-		p.Page = p.TotalPages
-	} else {
-		p.Page = page
-	}
+	p.Page = clamp(page, 1, p.TotalPages)
 	p.updateNavigation()
 }
 
@@ -45,8 +26,29 @@ func (p *Metadata) updateNavigation() {
 }
 
 func (p *Metadata) Offset() int32 {
-	if p.Page <= 0 {
-		return 0
+	return max((p.Page-1)*p.PageSize, 0)
+}
+
+func max(a, b int32) int32 {
+	if a > b {
+		return a
 	}
-	return (p.Page - 1) * p.PageSize
+	return b
+}
+
+func min(a, b int32) int32 {
+	if a < b {
+		return a
+	}
+	return b
+}
+
+func clamp(val, min, max int32) int32 {
+	if val < min {
+		return min
+	}
+	if val > max {
+		return max
+	}
+	return val
 }
